@@ -46,13 +46,35 @@ body {
 
 /* DASHBOARD LAYOUT */
 .navbar { 
-    background: #ffffff; color: var(--text-main); padding: 0 2rem; 
-    display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 1px solid var(--border); height: 70px; box-sizing: border-box;
-    position: relative; z-index: 10;
+    background: linear-gradient(90deg, #ffffff 0%, #f1f5f9 100%);
+    color: var(--text-main); 
+    padding: 0 2rem; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    border-bottom: 1px solid #e2e8f0; 
+    height: 70px; 
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    position: relative;
+    z-index: 10;
 }
-.nav-brand { font-weight: 700; color: #1e293b; font-size: 18px; text-transform: uppercase; letter-spacing: 0.05em; }
 
+.nav-brand { 
+    font-weight: 800; 
+    /* Effetto gradiente sul testo */
+    background: linear-gradient(45deg, #1e293b, #326ce5);
+    -webkit-background-clip: text; /* L'errore giallo è normale, ignoralo */
+    background-clip: text;         /* Versione standard per il futuro */
+    -webkit-text-fill-color: transparent;
+    color: transparent;            /* Fallback per browser che non supportano il clip */
+    
+    font-size: 19px; 
+    text-transform: uppercase; 
+    letter-spacing: 0.08em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
 /* 🔴 FIX MAIN CONTAINER */
 .main-container { 
     display: flex; 
@@ -77,6 +99,33 @@ body {
     overflow-y: auto;
     flex-shrink: 0;
 }
+
+.sidebar-section {
+    color: #ffffff;             /* Bianco puro */
+    font-size: 0.75rem;         /* Leggermente più grande per visibilità */
+    font-weight: 800;           /* Extra bold per un look tecnico */
+    text-transform: uppercase;
+    letter-spacing: 0.15em;     /* Spaziatura ampia per un look moderno */
+    padding: 30px 16px 12px 20px; /* Più respiro tra i blocchi */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0.9;               /* Leggera trasparenza per non sparare troppo */
+    position: relative;
+}
+
+/* Effetto estetico: linea verticale d'accento a sinistra del testo */
+.sidebar-section::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 3px;
+    height: 12px;               /* Linea corta e centrata rispetto al testo */
+    background: var(--accent);  /* Usa il blu Kubernetes come accento */
+    border-radius: 0 4px 4px 0;
+}
+
+
 
 /* SIDEBAR LIST ITEMS (per le scritte bianche) */
 .sidebar li { 
@@ -344,4 +393,12 @@ button[onclick*="deleteDeploy"]:hover { background: #ef4444; color: #fff; }
     overflow-y: auto;
     font-family: 'Courier New', monospace;
     margin: 0;
+}
+
+.management-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.management-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.08);
 }
