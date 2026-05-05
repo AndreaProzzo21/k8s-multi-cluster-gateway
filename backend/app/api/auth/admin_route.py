@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Header, Depends, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Header, Depends, UploadFile, File, Form, Body
 from app.infrastructure.database import SessionLocal, ClusterModel, ProfileModel
 from app.api.schemas.cluster_schema import ProfileCreate
 from typing import Optional
@@ -94,5 +94,82 @@ async def delete_profile(profile_id: int):
         db.delete(profile)
         db.commit()
         return {"message": f"Profile {profile_id} deleted"}
+    finally:
+        db.close()
+
+# --- GET ENDPOINTS (Retrieve) ---
+
+@admin_router.get("/clusters", dependencies=[Depends(verify_admin)])
+async def list_clusters():
+    db = SessionLocal()
+    try:
+        clusters = db.query(ClusterModel).all()
+        # Restituiamo i dati escludendo magari il certificato intero per non appesantire la lista
+        return [{
+            "id": c.id, 
+            "name": c.name, 
+            "host": c.host, 
+            "has_ca": bool(c.ca_cert)
+        } for c in clusters]
+    finally:
+        db.close()
+
+@admin_router.get("/profiles", dependencies=[Depends(verify_admin)])
+async def list_profiles():
+    db = SessionLocal()
+    try:
+        profiles = db.query(ProfileModel).all()
+        return [{
+            "id": p.id,
+            "cluster_id": p.cluster_id,
+            "name": p.name,
+            "token_preview": f"{p.k8s_token[:10]}..." # Solo un'anteprima per sicurezza
+        } for p in profiles]
+    finally:
+        db.close()
+
+# --- PATCH ENDPOINTS (Update) ---
+
+@admin_router.patch("/clusters/{cluster_id}", dependencies=[Depends(verify_admin)])
+async def update_cluster(
+    cluster_id: str, 
+    name: Optional[str] = Form(None),
+    host: Optional[str] = Form(None),
+    ca_file: Optional[UploadFile] = File(None)
+):
+    db = SessionLocal()
+    try:
+        cluster = db.query(ClusterModel).filter(ClusterModel.id == cluster_id.upper()).first()
+        if not cluster:
+            raise HTTPException(status_code=404, detail="Cluster not found")
+
+        if name: cluster.name = name
+        if host: cluster.host = host
+        if ca_file:
+            content = await ca_file.read()
+            cluster.ca_cert = content.decode("utf-8").strip()
+
+        db.commit()
+        return {"message": f"Cluster {cluster_id} updated"}
+    finally:
+        db.close()
+
+@admin_router.patch("/profiles/{profile_id}", dependencies=[Depends(verify_admin)])
+async def update_profile(
+    profile_id: int, 
+    gateway_password: Optional[str] = Body(None),
+    k8s_token: Optional[str] = Body(None)
+):
+    db = SessionLocal()
+    try:
+        profile = db.query(ProfileModel).filter(ProfileModel.id == profile_id).first()
+        if not profile:
+            raise HTTPException(status_code=404, detail="Profile not found")
+
+        if gateway_password: profile.gateway_password = gateway_password
+        if k8s_token: profile.k8s_token = k8s_token
+
+        db.commit()
+        return {"message": f"Profile {profile_id} updated"}
     finally:
         db.close()
