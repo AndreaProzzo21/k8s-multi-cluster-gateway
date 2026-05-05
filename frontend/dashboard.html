@@ -15,11 +15,11 @@
         
         <div class="nav-right-container">
             <div class="status-group">
-                <div class="info-badge">
+                <div class="info-badge" style="background-color: white;">
                     <span class="label">CLUSTER</span>
                     <span id="displayCluster" class="value"></span>
                 </div>
-                <div class="info-badge">
+                <div class="info-badge" style="background-color: white;">
                     <span class="label">PROFILE</span>
                     <span id="displayProfile" class="value"></span>
                 </div>
@@ -33,7 +33,7 @@
 
     <div class="main-container">
         <aside class="sidebar" style="overflow-y: auto; max-height: 100%;" >
-            <div class="sidebar-section" style="text-align: center; color: white; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 15px 0 10px 0; border-bottom: 1px solid #f1f5f9;">Cluster Admin</div>
+            <div class="sidebar-section">Cluster Admin</div>
             <ul>
                 <li id="menu-nodes" onclick="setActive(this); loadNodes()">
                     <i class="fas fa-server"></i> Nodes Overview
@@ -43,7 +43,7 @@
                 </li>
             </ul>
 
-            <div class="sidebar-section" style="text-align: center; color: white; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 15px 0 10px 0; border-bottom: 1px solid #f1f5f9;">Workloads</div>
+            <div class="sidebar-section">Workloads</div>
             <ul>
                 <li id="menu-pods" class="active" onclick="setActive(this); loadPods()">
                     <i class="fas fa-microchip"></i> Pods List
@@ -56,7 +56,7 @@
                 </li>
             </ul>
 
-            <div class="sidebar-section" style="text-align: center; color: white; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 15px 0 10px 0; border-bottom: 1px solid #f1f5f9;">Network & Config</div>
+            <div class="sidebar-section">Network & Config</div>
             <ul>
                 <li id="menu-svcs" onclick="setActive(this); loadServices()">
                     <i class="fas fa-network-wired"></i> Services
@@ -73,9 +73,7 @@
             </ul>
 
             <!-- Sezione Access Control -->
-            <div class="sidebar-section" style="text-align: center; color: white; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 15px 0 10px 0; border-bottom: 1px solid #f1f5f9;">
-                Access Control
-            </div>
+            <div class="sidebar-section">Access Control</div>
             <ul>
                 <li id="menu-sa" onclick="setActive(this); loadServiceAccounts()">
                     <i class="fas fa-user-shield"></i> Service Accounts
@@ -167,11 +165,53 @@
             const options = { method, headers: { 'Authorization': `Bearer ${token}` } };
             if (body) options.body = body;
             const response = await fetch(`${API_BASE}${endpoint}`, options);
+            
+            // Gestione specifica per i permessi
+            if (response.status === 403) {
+                throw new Error("RESTRICTED"); // Usiamo una stringa chiave
+            }
+
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.message || errorData.detail || "API ERROR");
             }
             return isText ? await response.text() : await response.json();
+        }
+
+
+        function renderRestrictedAccess() {
+            const resArea = document.getElementById('resultArea');
+            resArea.innerHTML = `
+                <div style="text-align:center; padding:60px; color:var(--text-muted);">
+                    <i class="fas fa-shield-alt fa-4x" style="margin-bottom:20px; color:var(--warning);"></i>
+                    <h2 style="color:var(--text-muted);">Accesso Limitato</h2>
+                    <p>Il tuo profilo non dispone dei permessi necessari per visualizzare questa risorsa o eseguire l'operazione.</p>
+                </div>`;
+        }
+
+                /**
+         * Funzione per la creazione di un nuovo Namespace
+         * 
+         */
+        async function addNewNamespace() {
+            const name = prompt("Inserisci il nome del nuovo Namespace:");
+            if (!name || name.trim() === "") return;
+
+            try {
+                // Chiamata all'endpoint POST /namespaces/{name} del tuo router
+                await apiCall(`/namespaces/${name}`, 'POST');
+                
+                alert(`Namespace '${name}' creato con successo!`);
+                
+                // Ricarichiamo la lista per vedere il nuovo namespace nella select
+                await loadNamespaceList();
+                
+                // Selezioniamo automaticamente il nuovo namespace
+                updateNamespaceContext(name);
+                
+            } catch (err) {
+                showError("Impossibile creare il namespace: " + err.message);
+            }
         }
 
         async function loadNamespaceList() {
@@ -229,82 +269,128 @@
         async function loadNodes() {
             currentView = 'nodes';
             const resArea = document.getElementById('resultArea');
-            
             document.getElementById('controlsContainer').style.display = 'none';
             resArea.innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
             try {
-                const data = await apiCall('/cluster/nodes');
-                
+                // Usiamo allSettled per non bloccare tutto se una chiamata fallisce (es. 403 Forbidden)
+                const results = await Promise.allSettled([
+                    apiCall('/cluster/nodes'),
+                    apiCall('/namespaces'),
+                    apiCall('/namespaces/default/deployments') // Esempio per statistiche workloads
+                ]);
+
+                // Estrazione sicura dei dati
+                const nodes = results[0].status === 'fulfilled' ? results[0].value : null;
+                const namespaces = results[1].status === 'fulfilled' ? results[1].value : null;
+                const deploymentsSample = results[2].status === 'fulfilled' ? results[2].value : null;
+
+                // Se non possiamo vedere nemmeno i nodi, mostriamo un blocco di sicurezza
+                if (!nodes) {
+                    resArea.innerHTML = `
+                        <div style="text-align:center; padding:60px; color:var(--text-muted);">
+                            <i class="fas fa-shield-alt fa-4x" style="margin-bottom:20px; color:var(--warning);"></i>
+                            <h2>Accesso Limitato</h2>
+                            <p>Il tuo profilo non dispone dei permessi necessari per visualizzare le risorse a livello di cluster.</p>
+                        </div>`;
+                    return;
+                }
+
+                // Calcolo statistiche aggregate
+                const totalCpu = nodes.reduce((acc, n) => acc + (parseInt(n.cpu) || 0), 0);
+                const totalMem = nodes.reduce((acc, n) => acc + (parseInt(n.memory) || 0), 0);
+                const readyNodes = nodes.filter(n => n.status === 'Ready').length;
+
                 let html = `
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                        <h2 style="margin:0;">Cluster Nodes Overview</h2>
-                        <small style="color:var(--text-muted)">${data.length} Total Nodes</small>
+                    <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:25px; border-bottom: 2px solid var(--border); padding-bottom:15px;">
+                        <div>
+                            <h2 style="margin:0; color:#334155;">Cluster Overview</h2>
+                            <p style="margin:5px 0 0 0; font-size:0.85rem; color:var(--text-muted);">Health and resource distribution across the infrastructure.</p>
+                        </div>
+                        <div style="text-align:right;">
+                            <span class="badge ${readyNodes === nodes.length ? 'status-running' : 'status-pending'}">
+                                ${readyNodes} / ${nodes.length} Nodes Ready
+                            </span>
+                        </div>
                     </div>
+
+                    <!-- GRID METRICHE PRINCIPALI -->
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px;">
+                        <div class="management-card" style="padding:15px; border-left: 4px solid var(--accent);">
+                            <small style="text-transform:uppercase; font-weight:700; color:var(--text-muted); font-size:0.65rem;">Total Compute</small>
+                            <div style="font-size:1.2rem; font-weight:700; margin-top:5px;">${totalCpu} Cores</div>
+                        </div>
+                        <div class="management-card" style="padding:15px; border-left: 4px solid #10b981;">
+                            <small style="text-transform:uppercase; font-weight:700; color:var(--text-muted); font-size:0.65rem;">Total Memory</small>
+                            <div style="font-size:1.2rem; font-weight:700; margin-top:5px;">${(totalMem / 1024 / 1024).toFixed(1)} GB</div>
+                        </div>
+                        <div class="management-card" style="padding:15px; border-left: 4px solid var(--warning);">
+                            <small style="text-transform:uppercase; font-weight:700; color:var(--text-muted); font-size:0.65rem;">Namespaces</small>
+                            <div style="font-size:1.2rem; font-weight:700; margin-top:5px;">
+                                ${namespaces ? (namespaces.can_list ? namespaces.items.length : 'Restricted') : '<i class="fas fa-lock" style="font-size:0.9rem;"></i>'}
+                            </div>
+                        </div>
+                        <div class="management-card" style="padding:15px; border-left: 4px solid #64748b;">
+                            <small style="text-transform:uppercase; font-weight:700; color:var(--text-muted); font-size:0.65rem;">Workloads (Default)</small>
+                            <div style="font-size:1.2rem; font-weight:700; margin-top:5px;">
+                                ${deploymentsSample ? deploymentsSample.length : '<i class="fas fa-lock" style="font-size:0.9rem;"></i>'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3 style="font-size:1rem; margin-bottom:15px;"><i class="fas fa-server" style="margin-right:10px;"></i>Node Distribution</h3>
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Node Name & OS</th>
+                                <th>Node Details</th>
                                 <th>Status</th>
-                                <th>Role & K8s</th>
-                                <th>CPU (Alloc/Total)</th>
-                                <th>RAM (Alloc/Total)</th>
+                                <th>K8s Version</th>
+                                <th>Resource Allocation</th>
                             </tr>
                         </thead>
                         <tbody>`;
-                
-                data.forEach(n => {
+
+                nodes.forEach(n => {
                     const isReady = n.status === 'Ready';
-                    const sClass = isReady ? 'status-running' : 'status-pending';
-                    
                     const memTotGB = (parseInt(n.memory) / 1024 / 1024).toFixed(1);
                     const memAllocGB = (parseInt(n.mem_allocatable) / 1024 / 1024).toFixed(1);
-                    
                     const cpuUsagePct = ((parseInt(n.cpu_allocatable) / parseInt(n.cpu)) * 100).toFixed(0);
                     const memUsagePct = ((parseFloat(memAllocGB) / parseFloat(memTotGB)) * 100).toFixed(0);
 
                     html += `
                         <tr>
-                            <td>
-                                <b style="color:var(--accent);">${n.name}</b><br>
-                                <span style="font-size:0.75rem; color:#64748b;">${n.os}</span>
+                            <td style="padding:15px;">
+                                <div style="font-weight:700; color:var(--accent);">${n.name}</div>
+                                <div style="font-size:0.75rem; color:var(--text-muted);">${n.os} • ${n.role}</div>
                             </td>
-                            <td>
-                                <span class="badge ${sClass}">${n.status}</span>
-                            </td>
-                            <td>
-                                <span style="font-size:0.85rem; font-weight:600;">${n.role}</span><br>
-                                <code style="font-size:0.75rem;">${n.version}</code>
-                            </td>
-                            <td>
-                                <div style="width:130px;">
-                                    <div style="display:flex; justify-content:space-between; font-size:0.7rem; margin-bottom:3px;">
-                                        <span>${n.cpu_allocatable}/${n.cpu} Cores</span>
-                                        <span>${cpuUsagePct}%</span>
+                            <td><span class="badge ${isReady ? 'status-running' : 'status-pending'}">${n.status}</span></td>
+                            <td><code style="font-size:0.8rem;">${n.version}</code></td>
+                            <td style="width:250px;">
+                                <div style="margin-bottom:10px;">
+                                    <div style="display:flex; justify-content:space-between; font-size:0.65rem; margin-bottom:4px;">
+                                        <span>CPU</span><span>${cpuUsagePct}%</span>
                                     </div>
-                                    <div style="width:100%; height:5px; background:#e2e8f0; border-radius:5px; overflow:hidden;">
+                                    <div style="width:100%; height:6px; background:#e2e8f0; border-radius:10px; overflow:hidden;">
                                         <div style="width:${cpuUsagePct}%; height:100%; background:var(--accent);"></div>
                                     </div>
                                 </div>
-                            </td>
-                            <td>
-                                <div style="width:130px;">
-                                    <div style="display:flex; justify-content:space-between; font-size:0.7rem; margin-bottom:3px;">
-                                        <span>${memAllocGB}/${memTotGB} GB</span>
-                                        <span>${memUsagePct}%</span>
+                                <div>
+                                    <div style="display:flex; justify-content:space-between; font-size:0.65rem; margin-bottom:4px;">
+                                        <span>RAM</span><span>${memUsagePct}%</span>
                                     </div>
-                                    <div style="width:100%; height:5px; background:#e2e8f0; border-radius:5px; overflow:hidden;">
+                                    <div style="width:100%; height:6px; background:#e2e8f0; border-radius:10px; overflow:hidden;">
                                         <div style="width:${memUsagePct}%; height:100%; background:#10b981;"></div>
                                     </div>
                                 </div>
                             </td>
                         </tr>`;
                 });
-                
-                resArea.innerHTML = html + '</tbody></table>';
-                
-            } catch (err) { 
-                showError(err.message); 
+
+                html += `</tbody></table>`;
+                resArea.innerHTML = html;
+
+            } catch (err) {
+                showError("Errore critico durante il caricamento dei nodi: " + err.message);
             }
         }
 
@@ -385,7 +471,11 @@
 
 
             } catch (err) { 
-                showError(err.message); 
+                if (err.message === "RESTRICTED") {
+                    renderRestrictedAccess(); 
+                } else {
+                    showError(err.message);
+                }
             }
         }
 
@@ -439,7 +529,11 @@
                     : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Deployment found in namespace ${ns}.</p>`;
                 
             } catch (err) { 
-                showError(err.message); 
+                if (err.message === "RESTRICTED") {
+                    renderRestrictedAccess(); 
+                } else {
+                    showError(err.message);
+                }
             }
         }
 
@@ -487,7 +581,11 @@
                     : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Service found in namespace ${ns}.</p>`;
                     
             } catch (err) { 
-                showError(err.message); 
+                if (err.message === "RESTRICTED") {
+                    renderRestrictedAccess(); 
+                } else {
+                    showError(err.message);
+                }
             }
         }
 
@@ -525,7 +623,13 @@
                     ? html + '</tbody></table>' 
                     : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No ConfigMap found in namespace ${ns}.</p>`;
 
-            } catch (err) { showError(err.message); }
+            } catch (err) {
+                if (err.message === "RESTRICTED") {
+                    renderRestrictedAccess(); 
+                } else {
+                    showError(err.message);
+                }
+            }
         }
 
         async function loadSecrets() {
@@ -565,7 +669,13 @@
                     ? html + '</tbody></table>' 
                     : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Secret found in namespace ${ns}.</p>`;
 
-            } catch (err) { showError(err.message); }
+            } catch (err) {                 
+                if (err.message === "RESTRICTED") {
+                    renderRestrictedAccess(); 
+                } else {
+                    showError(err.message);
+                } 
+            }
         }
 
         async function loadEvents() {
@@ -629,7 +739,11 @@
 
                 resArea.innerHTML = html + '</tbody></table></div>';
             } catch (err) { 
-                showError(err.message); 
+                if (err.message === "RESTRICTED") {
+                    renderRestrictedAccess(); 
+                } else {
+                    showError(err.message);
+                } 
             }
         }
         // --- ACTIONS ---
@@ -643,7 +757,7 @@
 
 
         async function scaleDeploy(name, current) {
-            const n = prompt("Repliche:", current);
+            const n = prompt("Replicas:", current);
             if (n === null) return;
             try {
                 await apiCall(`/namespaces/${window.currentNamespace}/deployments/${name}/scale?replicas=${n}`, 'PATCH');
@@ -733,7 +847,7 @@
                 formData.append('file', new Blob([yamlContent], { type: 'text/yaml' }), 'resource.yaml');
                 const res = await apiCall(`/namespaces/${window.currentNamespace}/apply`, 'POST', false, formData);
                 reportDiv.innerHTML = `<div style="background:var(--accent-soft); padding:15px; border-radius:10px;"><b>Progress...</b><ul>${res.details.map(d => `<li>${d}</li>`).join('')}</ul></div>`;
-            } catch (err) { reportDiv.innerHTML = `<div style="color:var(--danger)">${err.message}</div>`; }
+            } catch (err) { showError(err.message);}
         }
 
 
@@ -763,7 +877,13 @@
                     ? html + '</tbody></table>' 
                     : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Service Accounts found in namespace ${ns}.</p>`;
 
-            } catch (err) { showError(err.message); }
+            } catch (err) {                
+                if (err.message === "RESTRICTED") {
+                    renderRestrictedAccess(); 
+                } else {
+                    showError(err.message);
+                }
+            }
         }
 
         /**
@@ -792,7 +912,12 @@
                     ? html + '</tbody></table>' 
                     : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Roles found in namespace ${ns}.</p>`;
 
-            } catch (err) { showError(err.message); }
+            } catch (err) {                
+                if (err.message === "RESTRICTED") {
+                    renderRestrictedAccess(); 
+                } else {
+                    showError(err.message);
+                }}
         }
 
         /**
@@ -823,7 +948,13 @@
                     ? html + '</tbody></table>' 
                     : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Role Bindings found in namespace ${ns}.</p>`;
 
-            } catch (err) { showError(err.message); }
+            } catch (err) {                 
+                if (err.message === "RESTRICTED") {
+                    renderRestrictedAccess(); 
+                } else {
+                    showError(err.message);
+                } 
+            }
         }
 
         async function loadIngress() {
@@ -880,7 +1011,11 @@
                     : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Ingress found in namespace ${ns}.</p>`;
 
             } catch (err) { 
-                showError(err.message); 
+                if (err.message === "RESTRICTED") {
+                    renderRestrictedAccess(); 
+                } else {
+                    showError(err.message);
+                } 
             }
         }
 
@@ -897,7 +1032,12 @@
                 refreshCurrentView(); 
                 
             } catch (err) {
-                    alert(`Error in deleting ${name}: ${err.message} `);
+                if (err.message == "RESTRICTED") {
+                    alert(`Error in deleting ${name}: RESTRICTED ACCESS 403 `);
+                }
+                else{
+                    alert(`Error in deleting ${name}: ${err}`);
+                }
             }
         }
 
