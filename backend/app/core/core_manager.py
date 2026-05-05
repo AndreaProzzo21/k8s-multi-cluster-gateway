@@ -20,7 +20,8 @@ class CoreManager:
         """
         self.core_v1 = k8s_apis["core_v1"]
         self.apps_v1 = k8s_apis["apps_v1"]
-        self.rbac_v1 = k8s_apis["rbac_v1"] 
+        self.rbac_v1 = k8s_apis["rbac_v1"]
+        self.networking_v1 = k8s_apis["networking_v1"]
         self.api_client = self.core_v1.api_client
 
 # --- DELETE OPERATIONS ---
@@ -464,6 +465,37 @@ class CoreManager:
             return {"status": "success", "message": f"RoleBinding {name} deleted"}
         except Exception as e:
             self._handle_exception(e, f"Delete RoleBinding {name}")
+        
+        
+    # --- INGRESS OPERATIONS ---
+
+    def list_ingress(self, namespace: str):
+        """Elenca gli Ingress nel namespace con dettagli su host e regole."""
+        try:
+            # Usiamo networking_v1 inizializzato dalla factory
+            ingresses = self.networking_v1.list_namespaced_ingress(namespace)
+            return [
+                {
+                    "name": ing.metadata.name,
+                    "hosts": [rule.host for rule in ing.spec.rules] if ing.spec.rules else [],
+                    "address": [addr.ip or addr.hostname for addr in ing.status.load_balancer.ingress] 
+                            if ing.status.load_balancer and ing.status.load_balancer.ingress else [],
+                    "creation_timestamp": ing.metadata.creation_timestamp
+                } for ing in ingresses.items
+            ]
+        except Exception as e:
+            self._handle_exception(e, f"List Ingress in '{namespace}'")
+
+    def delete_ingress(self, name: str, namespace: str):
+        """Elimina un Ingress specifico."""
+        try:
+            self.networking_v1.delete_namespaced_ingress(name=name, namespace=namespace)
+            return {
+                "status": "success", 
+                "message": f"Ingress '{name}' eliminato correttamente dal namespace '{namespace}'."
+            }
+        except Exception as e:
+            self._handle_exception(e, f"Eliminazione Ingress '{name}'")
 
     def _handle_exception(self, e: Exception, context: str):
         if not hasattr(e, 'status'):
