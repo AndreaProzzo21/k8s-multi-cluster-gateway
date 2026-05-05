@@ -61,6 +61,9 @@
                 <li id="menu-svcs" onclick="setActive(this); loadServices()">
                     <i class="fas fa-network-wired"></i> Services
                 </li>
+                <li id="menu-ingress" onclick="setActive(this); loadIngress()">
+                    <i class="fas fa-route"></i> Ingresses
+                </li>
                 <li id="menu-cm" onclick="setActive(this); loadConfigMaps()">
                     <i class="fas fa-th-list"></i> ConfigMaps
                 </li>
@@ -157,6 +160,7 @@
             else if (currentView === 'serviceaccounts') loadServiceAccounts();
             else if (currentView === 'roles') loadRoles();
             else if (currentView === 'rolebindings') loadRoleBindings();
+            else if (currentView === 'ingress') loadIngress();
         }
 
         async function apiCall(endpoint, method = 'GET', isText = false, body = null) {
@@ -820,6 +824,64 @@
                     : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Role Bindings found in namespace ${ns}.</p>`;
 
             } catch (err) { showError(err.message); }
+        }
+
+        async function loadIngress() {
+            currentView = 'ingress';
+            const ns = window.currentNamespace;
+            const resArea = document.getElementById('resultArea');
+            
+            resArea.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+            try {
+                const data = await apiCall(`/namespaces/${ns}/ingress`);
+                
+                let html = `
+                    <h2>Ingress Resources [${ns}]</h2>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Hosts</th>
+                                <th>Address (LoadBalancer)</th>
+                                <th>Age</th>
+                                <th style="text-align:right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                data.forEach(ing => {
+                    // Renderizziamo gli host come piccoli codici blu
+                    const hostsHtml = ing.hosts.length > 0 
+                        ? ing.hosts.map(h => `<code style="color:var(--accent); margin-right:5px;">${h}</code>`).join(' ')
+                        : '<span style="color:var(--text-muted)">*</span>';
+
+                    // Renderizziamo gli IP/Hostname esterni
+                    const addrHtml = ing.address.length > 0
+                        ? ing.address.map(a => `<span style="font-size:0.75rem;">${a}</span>`).join(', ')
+                        : '<span style="color:var(--text-muted)">-</span>';
+
+                    html += `
+                        <tr>
+                            <td><b>${ing.name}</b></td>
+                            <td>${hostsHtml}</td>
+                            <td>${addrHtml}</td>
+                            <td><small>${new Date(ing.creation_timestamp).toLocaleDateString()}</small></td>
+                            <td style="text-align:right">
+                                <button onclick="deleteResource('ingress', '${ing.name}')" class="btn-small delete-btn" title="Delete Ingress">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>`;
+                });
+
+                resArea.innerHTML = data.length > 0 
+                    ? html + '</tbody></table>' 
+                    : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Ingress found in namespace ${ns}.</p>`;
+
+            } catch (err) { 
+                showError(err.message); 
+            }
         }
 
         async function deleteResource(type, name) {
