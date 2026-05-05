@@ -143,3 +143,22 @@ async def get_bindings(namespace: str, manager: CoreManager = Depends(get_curren
 @router.delete("/namespaces/{namespace}/rolebindings/{name}")
 async def del_binding(namespace: str, name: str, manager: CoreManager = Depends(get_current_core_manager)):
     return manager.delete_role_binding(namespace, name)
+
+# --- INGRESS ---
+
+@router.get("/namespaces/{namespace}/ingress")
+async def get_ingress_list(
+    namespace: str, 
+    manager: CoreManager = Depends(get_current_core_manager)
+):
+    """Ottiene la lista degli Ingress per un dato namespace."""
+    return manager.list_ingress(namespace)
+
+@router.delete("/namespaces/{namespace}/ingress/{name}")
+async def delete_ingress_resource(
+    namespace: str, 
+    name: str, 
+    manager: CoreManager = Depends(get_current_core_manager)
+):
+    """Elimina una risorsa Ingress."""
+    return manager.delete_ingress(name, namespace)
