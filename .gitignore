@@ -4,3 +4,6 @@ frontend/favicon.ico
 frontend/logo_dashboard.jfif
 frontend/admin.html
 backend/debug_factory.py
+backend/tests
+backend/pytest.ini
+docker-compose.test.yml
