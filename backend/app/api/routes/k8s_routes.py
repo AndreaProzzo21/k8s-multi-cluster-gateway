@@ -249,17 +249,15 @@ async def get_service_details(
 # UNIVERSAL APPLY
 # ---------------------------------------------------------------------------
 
-@router.post("/namespaces/{namespace}/apply")
+@router.post("/apply")  # Rimosso /namespaces/{namespace}
 async def apply_resource(
-    namespace: str,
     file: UploadFile = File(...),
     manager: CoreManager = Depends(get_current_core_manager)
 ):
     """
-    Applica un manifesto YAML multi-risorsa al namespace.
-    Logica create-or-update: tenta la creazione; se la risorsa esiste già (409)
-    esegue un Server-Side Apply per aggiornare lo stato desiderato.
-    Accetta solo file con estensione .yaml o .yml.
+    Applica un manifesto YAML multi-risorsa in modo indipendente.
+    Il namespace viene letto direttamente dal file YAML. 
+    Se assente, K8s userà il default o restituirà errore in base ai permessi.
     """
     if not file.filename.lower().endswith((".yaml", ".yml")):
         raise HTTPException(
@@ -267,10 +265,9 @@ async def apply_resource(
             detail="Il file deve avere estensione .yaml o .yml"
         )
 
-    # `file.read()` è già asincrono: lo attendiamo prima di passare il contenuto
-    # al CoreManager (che è sincrono e non può usare await internamente).
     content = await file.read()
-    return await _run(manager.apply_universal_yaml, content.decode("utf-8"), namespace)
+    # Passiamo solo il contenuto, senza forzare un namespace
+    return await _run(manager.apply_universal_yaml, content.decode("utf-8"))
 
 
 # ---------------------------------------------------------------------------
