@@ -124,53 +124,35 @@
     <script src="assets/js/modules/rbac.js"></script>
 
     <!-- 3. Script di avvio (Bootstrapper) -->
-   <script>
-    // 1. Controllo sicurezza rapido (usando localStorage direttamente)
-    if (!localStorage.getItem('k8s_jwt')) window.location.href = 'index.html';
+    <script>
+    if (!localStorage.getItem('k8s_jwt')) {
+        window.location.replace('index.html');
+    }
 
-    // 2. Init UI (Le variabili token e API_BASE sono già caricate da api.js)
     document.getElementById('displayCluster').innerText = localStorage.getItem('current_cluster') || 'N/A';
     document.getElementById('displayProfile').innerText = localStorage.getItem('current_profile') || 'N/A';
 
-    // 3. Variabili Globali (Usiamo window per essere sicuri che i moduli le vedano)
-    window.currentView = 'pods';
+    window.currentView      = 'pods';
     window.currentNamespace = localStorage.getItem('last_ns') || 'default';
 
-    // 4. Funzioni di coordinamento
     function refreshCurrentView() {
-        console.log("Refreshing:", window.currentView);
-        if (window.currentView === 'pods') loadPods();
-        else if (window.currentView === 'deployments') loadDeployments();
-        else if (window.currentView === 'nodes') loadNodes();
-        else if (window.currentView === 'services') loadServices();
-        else if (window.currentView === 'configmaps') loadConfigMaps();
-        else if (window.currentView === 'secrets') loadSecrets();
-        else if (window.currentView === 'events') loadEvents();
-        else if (window.currentView === 'serviceaccounts') loadServiceAccounts();
-        else if (window.currentView === 'roles') loadRoles();
-        else if (window.currentView === 'rolebindings') loadRoleBindings();
-        else if (window.currentView === 'ingress') loadIngress();
+        const viewMap = {
+            pods:            loadPods,
+            deployments:     loadDeployments,
+            nodes:           loadNodes,
+            services:        loadServices,
+            configmaps:      loadConfigMaps,
+            secrets:         loadSecrets,
+            events:          loadEvents,
+            serviceaccounts: loadServiceAccounts,
+            roles:           loadRoles,
+            rolebindings:    loadRoleBindings,
+            ingress:         loadIngress,
+        };
+        const fn = viewMap[window.currentView];
+        if (fn) fn();
     }
 
-    function logout() {
-        // 1. Pulisce ogni forma di storage
-        localStorage.clear();
-        sessionStorage.clear();
-        
-        // 2. Rimuove eventuali cookie (se presenti)
-        document.cookie.split(";").forEach(function(c) { 
-            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
-        });
-
-        // 3. IL TRUCCO DEFINITIVO: reload(true) forza il recupero dal server 
-        // e svuota la cache della sessione corrente.
-        window.location.replace('index.html');
-        setTimeout(() => {
-            window.location.reload();
-        }, 100);
-    }
-
-    // Questa deve sovrascrivere quella in ui.js se necessario per il refresh
     function updateNamespaceContext(val) {
         if (!val || val === 'undefined') return;
         window.currentNamespace = val;
@@ -178,8 +160,38 @@
         refreshCurrentView();
     }
 
-    // 5. Avvio (Funzione definita in cluster.js)
-    loadNamespaceList();
+    function logout() {
+        const loginError = sessionStorage.getItem('login_error');
+        localStorage.clear();
+        sessionStorage.clear();
+        if (loginError) sessionStorage.setItem('login_error', loginError);
+        document.cookie.split(";").forEach(c => {
+            document.cookie = c.replace(/^ +/, "").replace(/=.*/, 
+                "=;expires=" + new Date().toUTCString() + ";path=/");
+        });
+        window.location.replace('index.html');
+    }
+
+    async function initDashboard() {
+        renderLoadingOverlay(true, "Connecting to cluster...");
+        try {
+            await apiCall('/cluster/health');
+            // ✅ Health check passato: da ora i 504 operativi fanno redirect
+            window._dashboardReady = true;
+            renderLoadingOverlay(false);
+            loadNamespaceList();
+        } catch (err) {
+            // CLUSTER_UNREACHABLE o backend down: mostriamo l'overlay di errore.
+            // NON facciamo redirect: l'utente sceglie Retry o Logout.
+            handleLoadingError(
+                err.message === "CLUSTER_UNREACHABLE"
+                    ? "The host may be powered off or the cluster is not responding."
+                    : (err.message || "Backend not responding.")
+            );
+        }
+    }
+
+    initDashboard();
     </script>
 
 </body>

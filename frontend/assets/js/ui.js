@@ -1,6 +1,3 @@
-/**
- * Global Loading Overlay
- */
 function renderLoadingOverlay(show = true, message = "Initializing cluster...") {
     let overlay = document.getElementById('loadingOverlay');
 
@@ -8,40 +5,95 @@ function renderLoadingOverlay(show = true, message = "Initializing cluster...") 
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'loadingOverlay';
+            // Overlay fullscreen semi-trasparente
+            overlay.style.cssText = `
+                position: fixed; inset: 0; z-index: 9999;
+                background: rgba(0,0,0,0.55);
+                display: flex; align-items: center; justify-content: center;
+                transition: opacity 0.3s ease;
+            `;
             document.body.appendChild(overlay);
         }
         overlay.classList.remove('hidden');
         overlay.innerHTML = `
-            <div id="loaderContent" class="spinner-container">
-                <div class="minimal-spinner"></div>
-                <h3 id="loadingText" style="font-weight: 400; letter-spacing: 1px;">${message.toUpperCase()}</h3>
+            <div id="loaderContent" style="
+                background: var(--color-background-primary, #fff);
+                border-radius: 12px;
+                border: 0.5px solid rgba(0,0,0,0.1);
+                padding: 2.5rem 2rem;
+                max-width: 400px; width: 90%;
+                text-align: center;
+            ">
+                <div class="minimal-spinner" style="margin: 0 auto 1.5rem;"></div>
+                <p style="font-size: 11px; font-weight: 600; letter-spacing: 2px;
+                          color: #94a3b8; margin: 0 0 8px; text-transform: uppercase;">
+                    Kubernetes Cloud Gateway
+                </p>
+                <h3 style="font-size: 16px; font-weight: 500; color: #1e293b; margin: 0;">
+                    ${message}
+                </h3>
             </div>
         `;
     } else if (overlay) {
-        overlay.classList.add('hidden');
-        setTimeout(() => overlay.remove(), 400);
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.remove(), 300);
     }
 }
 
-/**
- * Handles Loading/Connection Errors
- */
 function handleLoadingError(errorMsg) {
     const content = document.getElementById('loaderContent');
     if (!content) return;
 
-    content.className = "error-container";
     content.innerHTML = `
-        <h2 style="color: var(--danger); font-weight: 600;">CONNECTION ERROR</h2>
-        <p style="font-size: 1rem; color: #64748b; margin: 15px 0; border-top: 1px solid #eee; pt-15px;">
-            ${errorMsg || "The cluster is unreachable or the backend is not responding."}
+        <div style="width:1px; height:3px; background:#ef4444; margin:0 auto 2rem; 
+                    box-shadow: 0 0 0 0 rgba(239,68,68,0); 
+                    animation: pulseBar 1.8s ease-out forwards;">
+        </div>
+        <style>
+            @keyframes pulseBar {
+                0%   { width:1px;   opacity:1; }
+                60%  { width:120px; opacity:1; }
+                100% { width:120px; opacity:0.35; }
+            }
+        </style>
+
+        <p style="font-size:10px; font-weight:700; letter-spacing:3px; 
+                  color:#ef4444; margin:0 0 12px; text-transform:uppercase;">
+            Connection failed
         </p>
-        <div class="error-actions" style="margin-top: 25px;">
-            <button onclick="location.reload()" class="btn-action" style="padding: 10px 25px;">
-                RETRY
+
+        <h2 style="font-size:20px; font-weight:500; color:#1e293b; 
+                   margin:0 0 8px; letter-spacing:-0.3px;">
+            Cluster unreachable
+        </h2>
+
+        <p style="font-size:13px; color:#94a3b8; line-height:1.7; 
+                  margin:0 0 2rem; max-width:280px; margin-left:auto; margin-right:auto;">
+            ${errorMsg || "The host may be powered off or the cluster is not responding."}
+        </p>
+
+        <div style="width:100%; height:1px; background:#f1f5f9; margin:0 0 1.5rem;"></div>
+
+        <div style="display:flex; gap:10px; justify-content:center;">
+            <button onclick="location.reload()" style="
+                display:flex; align-items:center; gap:7px;
+                padding:9px 22px; border-radius:8px;
+                border:1px solid #e2e8f0; background:#fff;
+                color:#1e293b; font-size:13px; font-weight:500;
+                cursor:pointer; transition:background 0.15s;
+            " onmouseover="this.style.background='#f8fafc'" 
+               onmouseout="this.style.background='#fff'">
+                <i class="fas fa-redo" style="font-size:12px; color:#94a3b8;"></i> Retry
             </button>
-            <button onclick="logout()" class="btn-small" style="margin-left: 10px;">
-                LOGOUT
+            <button onclick="logout()" style="
+                display:flex; align-items:center; gap:7px;
+                padding:9px 22px; border-radius:8px;
+                border:1px solid #fecaca; background:#fff5f5;
+                color:#ef4444; font-size:13px; font-weight:500;
+                cursor:pointer; transition:background 0.15s;
+            " onmouseover="this.style.background='#fee2e2'"
+               onmouseout="this.style.background='#fff5f5'">
+                <i class="fas fa-sign-out-alt" style="font-size:12px;"></i> Logout
             </button>
         </div>
     `;
