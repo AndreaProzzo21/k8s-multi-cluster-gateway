@@ -12,6 +12,7 @@ from kubernetes.client import V1Namespace, V1ObjectMeta
 import yaml
 import tempfile
 from datetime import datetime
+import urllib3
 
 class CoreManager:
     def __init__(self, k8s_apis: dict):
@@ -83,12 +84,14 @@ class CoreManager:
                 "items": [{"name": ns.metadata.name, "status": ns.status.phase} for ns in ns_list.items]
             }
         except Exception as e:
-            # Se l'utente non può listare, non lanciamo un errore 403 bloccante,
-            # ma informiamo il frontend che la lista è privata.
-            return {
-                "can_list": False,
-                "items": []
-            }
+            # Re-raise se è un problema di rete/timeout: non vogliamo mascherarlo
+            if isinstance(e, (urllib3.exceptions.MaxRetryError,
+                            urllib3.exceptions.ConnectTimeoutError,
+                            urllib3.exceptions.ReadTimeoutError,
+                            urllib3.exceptions.NewConnectionError)):
+                self._handle_exception(e, "List Namespaces")
+            # Solo per 403/401 restituiamo il fallback silenzioso
+            return {"can_list": False, "items": []}
 
     # --- CONFIGMAPS, SECRETS, EVENTS ---
 
@@ -498,6 +501,18 @@ class CoreManager:
             self._handle_exception(e, f"Eliminazione Ingress '{name}'")
 
     def _handle_exception(self, e: Exception, context: str):
+        # Timeout e connessione: il cluster era irraggiungibile
+        if isinstance(e, (
+            urllib3.exceptions.MaxRetryError,
+            urllib3.exceptions.ConnectTimeoutError,
+            urllib3.exceptions.ReadTimeoutError,
+            urllib3.exceptions.NewConnectionError,
+            ConnectionRefusedError,
+        )):
+            raise K8sCommunicationException(
+                f"Cluster offline ({context}): connection timeout.",
+                status_code=504
+            )
         if not hasattr(e, 'status'):
              raise K8sBaseException(f"Errore interno ({context}): {str(e)}", status_code=500)
         if e.status == 404: raise K8sResourceNotFoundException(f"{context} non trovato", status_code=404)
