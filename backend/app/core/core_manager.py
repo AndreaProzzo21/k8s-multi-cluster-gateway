@@ -6,6 +6,7 @@ from app.core.exceptions import (
 )
 from kubernetes.client.rest import ApiException
 from kubernetes import utils
+from kubernetes import client
 from kubernetes import dynamic
 from kubernetes.dynamic.exceptions import ResourceNotFoundError
 from kubernetes.client import V1Namespace, V1ObjectMeta
@@ -24,6 +25,24 @@ class CoreManager:
         self.rbac_v1 = k8s_apis["rbac_v1"]
         self.networking_v1 = k8s_apis["networking_v1"]
         self.api_client = self.core_v1.api_client
+
+
+    def check_connectivity(self) -> dict:
+        """
+        Verifica la connettività al cluster con una chiamata che non richiede
+        permessi RBAC specifici: /version è accessibile a qualsiasi SA autenticato.
+        Restituisce il dettaglio della versione se raggiungibile.
+        """
+        try:
+            # VersionApi non richiede nessun permesso RBAC — risponde a tutti
+            # i token validi indipendentemente dal profilo o namespace.
+            version_info = client.VersionApi(self.api_client).get_code()
+            return {
+                "status": "reachable",
+                "server_version": f"{version_info.major}.{version_info.minor}"
+            }
+        except Exception as e:
+            self._handle_exception(e, "Health Check")
 
 # --- DELETE OPERATIONS ---
 

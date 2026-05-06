@@ -19,7 +19,7 @@ router = APIRouter()
 # 100 worker permettono di gestire molti cluster offline contemporaneamente
 # senza mai bloccare il login o le altre rotte di sistema.
 k8s_executor = ThreadPoolExecutor(
-    max_workers=100, 
+    max_workers=20, 
     thread_name_prefix="k8s_worker"
 )
 
@@ -50,6 +50,14 @@ async def _run(fn, *args, **kwargs):
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail="The remote server failed to respond within the time limit. The host might be powered off or unreachable."
         )
+
+@router.get("/cluster/health")
+async def cluster_health(manager: CoreManager = Depends(get_current_core_manager)):
+    """
+    Verifica la connettività al cluster via /version (nessun permesso RBAC richiesto).
+    Usato dal frontend post-login prima di mostrare la dashboard.
+    """
+    return await _run(manager.check_connectivity)
 
 
 # ---------------------------------------------------------------------------
