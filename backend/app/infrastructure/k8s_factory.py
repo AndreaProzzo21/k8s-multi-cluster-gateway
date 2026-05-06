@@ -7,7 +7,7 @@ from urllib3.util.retry import Retry
 from urllib3.util.timeout import Timeout
 
 import socket
-socket.setdefaulttimeout(10)
+socket.setdefaulttimeout(15)
 
 
 # ---------------------------------------------------------------------------
