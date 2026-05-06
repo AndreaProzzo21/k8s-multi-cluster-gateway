@@ -3,3 +3,4 @@ backend/data/
 frontend/favicon.ico
 frontend/logo_dashboard.jfif
 frontend/admin.html
+backend/debug_factory.py
