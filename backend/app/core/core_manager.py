@@ -325,47 +325,50 @@ class CoreManager:
 
     # --- UNIVERSAL APPLY ---
 
-    def apply_universal_yaml(self, yaml_content, namespace):
+    def apply_universal_yaml(self, yaml_content):
         """
-        Applica un manifesto YAML multi-risorsa.
-        Logica: Prova a creare, se FailToCreateError analizza se è un 409 (già esistente).
+        Applica un manifesto YAML multi-risorsa in modo agnostico rispetto al namespace.
         """
         import yaml
         from kubernetes.utils import create_from_dict, FailToCreateError
-        from kubernetes.client.rest import ApiException
-        import json
+        from app.core.exceptions import K8sBaseException # Assicurati che l'import sia corretto
 
         try:
-            docs = yaml.safe_load_all(yaml_content)
+            # Carichiamo tutti i documenti presenti nel file
+            docs = list(yaml.safe_load_all(yaml_content))
             results = []
             
             for doc in docs:
                 if not doc: continue
                 
-                if "metadata" not in doc: doc["metadata"] = {}
-                doc["metadata"]["namespace"] = namespace
-                
+                # Rimosso il blocco che forzava doc["metadata"]["namespace"] = namespace
+                # Ora leggiamo semplicemente cosa ha scritto l'utente (se presente)
                 kind = doc.get("kind")
-                name = doc["metadata"].get("name")
+                metadata = doc.get("metadata", {})
+                name = metadata.get("name", "unnamed")
+                ns_in_doc = metadata.get("namespace") 
 
                 try:
                     # TENTATIVO 1: Creazione
-                    create_from_dict(self.api_client, doc, namespace=namespace)
-                    results.append(f"{kind} '{name}' creato correttamente.")
+                    # Non passiamo 'namespace' come argomento alla funzione per evitare override.
+                    # create_from_dict leggerà autonomamente metadata.namespace dal dizionario 'doc'.
+                    create_from_dict(self.api_client, doc)
+                    results.append(f"{kind} '{name}' creato correttamente (ns: {ns_in_doc or 'default/cluster-wide'}).")
                 
                 except FailToCreateError as f:
                     # FailToCreateError contiene una lista di eccezioni API
                     inner_exception = f.api_exceptions[0]
                     
-                    # Verifichiamo se l'errore interno è un 409
+                    # Verifichiamo se l'errore interno è un 409 (Conflict/Already Exists)
                     if hasattr(inner_exception, 'status') and inner_exception.status == 409:
                         try:
                             # TENTATIVO 2: Server-Side Apply (Aggiornamento)
-                            self._apply_patch_fallback(doc, namespace)
+                            self._apply_patch_fallback(doc)
                             results.append(f"{kind} '{name}' aggiornato (Server-Side Apply).")
                         except Exception as patch_err:
                             results.append(f"ERRORE su {kind} '{name}': {str(patch_err)}")
                     else:
+                        # Se l'errore è un 403 (Forbidden), verrà riportato qui correttamente
                         results.append(f"ERRORE su {kind} '{name}': {str(inner_exception)}")
 
                 except Exception as e:
@@ -382,25 +385,28 @@ class CoreManager:
                 raise K8sBaseException(f"Errore formato YAML: {str(e)}", status_code=400)
             self._handle_exception(e, "Universal Apply")
 
-    def _apply_patch_fallback(self, doc, namespace):
-        """Helper per eseguire il Server-Side Apply su risorse esistenti."""
+    def _apply_patch_fallback(self, doc):
+        """Helper per eseguire il Server-Side Apply leggendo il namespace dal documento."""
         from kubernetes import dynamic
         
         # Inizializziamo il client dinamico
         dynamic_client = dynamic.DynamicClient(self.api_client)
         
-        # Identifichiamo la risorsa
+        # Identifichiamo la risorsa (es. v1 Pod, apps/v1 Deployment)
         resource = dynamic_client.resources.get(
             api_version=doc['apiVersion'], 
             kind=doc['kind']
         )
         
-        # Eseguiamo il patch con il content_type corretto per SSA
-        # force=True permette di sovrascrivere conflitti di field management
+        # Estraiamo il namespace dal documento. 
+        # Se la risorsa è Cluster-scoped (es. un Nodo), ns sarà None e il client lo gestirà correttamente.
+        ns = doc.get('metadata', {}).get('namespace')
+        
+        # Eseguiamo il patch con il content_type corretto per Server-Side Apply
         return resource.patch(
             body=doc,
             name=doc['metadata']['name'],
-            namespace=namespace,
+            namespace=ns,  # <--- Dinamico: usa quello del file o None
             content_type='application/apply-patch+yaml',
             field_manager='k8s-cloud-gateway',
             force=True
