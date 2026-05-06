@@ -4,15 +4,16 @@ services:
     build: 
       context: ./backend
       dockerfile: Dockerfile
+      target: prod  # <--- Utilizza lo stage di produzione
     container_name: k8s_api_gateway_v1
     ports:
       - "8000:8000"
     env_file:
       - .env
     volumes:
-      # Sincronizza la cartella app per il reload automatico di uvicorn
+      # Sincronizza la cartella app per lo sviluppo
       - ./backend/app:/app/app
-      # DB
+      # Persistenza Database
       - ./backend/data:/app/data
     networks:
       - k8s_network
@@ -25,7 +26,6 @@ services:
     ports:
       - "80:80"
     volumes:
-      # Monta i file statici (HTML, JS, CSS) nella root di Nginx
       - ./frontend:/usr/share/nginx/html:ro
     networks:
       - k8s_network
