@@ -183,10 +183,81 @@ async function executeApply() {
     try {
         const formData = new FormData();
         formData.append('file', new Blob([yamlContent], { type: 'text/yaml' }), 'resource.yaml');
-        const res = await apiCall(`/namespaces/${window.currentNamespace}/apply`, 'POST', false, formData);
+        const res = await apiCall(`/apply`, 'POST', false, formData);
         reportDiv.innerHTML = `<div style="background:var(--accent-soft); padding:15px; border-radius:10px;"><b>Progress...</b><ul>${res.details.map(d => `<li>${d}</li>`).join('')}</ul></div>`;
     } catch (err) { showError(err.message);}
 }
+
+async function loadEvents() {
+    currentView = 'events';
+    const ns = window.currentNamespace;
+    const resArea = document.getElementById('resultArea');
+    resArea.innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+    try {
+        const data = await apiCall(`/namespaces/${ns}/events`);
+        
+        let html = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h2 style="margin:0;">Events Log [${ns}]</h2>
+                <small style="color:var(--text-muted)">Last ${data.length} events</small>
+            </div>
+            
+            <div style="max-height: 500px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; background: #fff;">
+                <table class="data-table" style="margin:0; border:none;">
+                    <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 1;">
+                        <tr>
+                            <th style="width: 180px;">Time</th>
+                            <th style="width: 130px;">Reason</th>
+                            <th>Object & Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+        if (!data || data.length === 0) {
+            html += `<tr><td colspan="3" style="text-align:center; padding:30px; color:var(--text-muted);">No recent events.</td></tr>`;
+        } else {
+            data.forEach(e => {
+                // Utilizziamo l'orario diretto senza trasformazioni pericolose
+                const displayTime = e.time || "N/A";
+
+                const isWarning = e.reason.toLowerCase().includes('fail') || 
+                                e.reason.toLowerCase().includes('kill') || 
+                                e.reason.toLowerCase().includes('backoff') ||
+                                e.reason.toLowerCase().includes('unhealthy');
+                
+                const rowStyle = isWarning ? 'background-color: #fff1f2;' : '';
+                const reasonColor = isWarning ? '#e11d48' : '#475569';
+
+                html += `
+                    <tr style="${rowStyle}">
+                        <td>
+                            <small style="font-family:monospace; color:#64748b; font-size:0.7rem;">${displayTime}</small>
+                        </td>
+                        <td>
+                            <b style="color:${reasonColor}; font-size:0.8rem;">${e.reason}</b>
+                        </td>
+                        <td>
+                            <div style="font-size:0.85rem; line-height:1.4;">
+                                <span style="color:var(--accent); font-weight:600;">${e.object || 'Unknown'}</span><br>
+                                <span style="color:#334155;">${e.message}</span>
+                            </div>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        resArea.innerHTML = html + '</tbody></table></div>';
+    } catch (err) { 
+        if (err.message === "RESTRICTED") {
+            renderRestrictedAccess(); 
+        } else {
+            showError(err.message);
+        } 
+    }
+}
+
+
 
 async function deleteResource(type, name) {
     if (!confirm(`Confermi l'eliminazione di ${type}: ${name}?`)) return;

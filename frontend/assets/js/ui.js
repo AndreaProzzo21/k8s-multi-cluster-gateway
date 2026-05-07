@@ -192,30 +192,6 @@ function renderLabels(labelsObj) {
     return `<div class="labels-column">${labelsHtml || '<span style="color:var(--text-muted)">none</span>'}</div>`;
 }
 
-/**
- * YAML Deployment Form
- */
-function showApplyForm() {
-    currentView = 'upload';
-    document.getElementById('resultArea').innerHTML = `
-        <div class="deploy-container" style="max-width: 900px;">
-            <h2 style="font-weight: 400; margin-bottom: 25px;">CLUSTER APPLY</h2>
-            <div class="upload-zone" style="border: 1px dashed var(--border); padding: 40px; border-radius: 8px; text-align: center; margin-bottom: 25px; background: #fafafa;">
-                <label style="cursor: pointer; display: block;">
-                    <span style="font-size: 0.9rem; color: var(--accent); font-weight: 600;">SELECT YAML SPECIFICATION</span>
-                    <input type="file" id="fileInput" accept=".yaml,.yml" style="display:none" onchange="handleFileUpload(event)">
-                </label>
-                <div id="fileNameDisplay" style="margin-top:10px; font-size:0.75rem; color:var(--text-muted); text-transform: uppercase;">Ready for upload</div>
-            </div>
-            <textarea id="yamlEditor" 
-                style="width:100%; height:350px; border-radius:4px; border:1px solid var(--border); padding:15px; font-family: monospace; font-size: 0.85rem; resize: vertical;" 
-                placeholder="# Paste your Kubernetes YAML here..."></textarea>
-            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
-                <button onclick="executeApply()" class="btn-action" style="padding: 12px 40px;">EXECUTE DEPLOY</button>
-            </div>
-            <div id="applyReport" style="margin-top:20px;"></div>
-        </div>`;
-}
 function setActive(el) {
 document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
 el.classList.add('active');
@@ -288,9 +264,18 @@ return `<div class="labels-column">${labelsHtml || '<span style="color:var(--tex
 
 function showApplyForm() {
     currentView = 'upload';
-    document.getElementById('resultArea').innerHTML = `
+    const resArea = document.getElementById('resultArea');
+    document.getElementById('controlsContainer').style.display = 'none';
+    resArea.innerHTML = `
         <div class="deploy-container">
-            <h2><i class="fas fa-magic"></i> Cluster Apply</h2>
+            <h2>Cluster Apply</h2>
+            <div class="info-note" style="background: rgba(var(--accent-rgb), 0.1); border-left: 4px solid var(--accent); padding: 12px; border-radius: 4px; margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">
+                <i class="fas fa-info-circle" style="color: var(--accent); margin-right: 8px;"></i>
+                <span style="color: var(--text-secondary)">
+                    <strong>Note:</strong> Resources are applied based on the <code>metadata.namespace</code> defined in your manifest. 
+                    Resources without a defined namespace will be directed to <strong>default</strong>. Supports multi-resource manifests. Separate distinct resources using the --- delimiter.
+                </span>
+            </div>
             <div class="upload-zone" style="border: 2px dashed var(--border); padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
                 <label style="cursor: pointer; display: block;">
                     <i class="fas fa-cloud-upload-alt fa-2x" style="color: var(--accent)"></i><br>
