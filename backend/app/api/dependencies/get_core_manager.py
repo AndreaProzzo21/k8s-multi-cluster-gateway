@@ -1,3 +1,30 @@
+"""
+get_core_manager.py
+===================
+
+Dependency FastAPI che autentica ogni request e costruisce il CoreManager
+configurato per il cluster specificato nel JWT.
+
+Flusso
+------
+1. Estrae e valida il JWT dall'header ``Authorization: Bearer``.
+2. Recupera **dal database** sia il CA Certificate che il ``k8s_token``
+   del profilo — nessuna credenziale K8s viaggia nel JWT.
+3. Istanzia i client K8s tramite la factory in un thread separato
+   (``run_in_executor``) per non bloccare l'event loop asyncio.
+4. Restituisce il ``CoreManager`` al route handler.
+
+Perché il k8s_token viene recuperato dal DB
+-------------------------------------------
+Il JWT è firmato ma non cifrato: il payload è leggibile in base64 da
+chiunque abbia il token. Nella versione precedente il k8s_token veniva
+incluso nel payload, esponendolo a chiunque riuscisse a leggere il JWT
+(es. XSS su localStorage, accesso fisico al browser).
+
+Ora il JWT contiene solo ``cluster_id`` e ``profile`` — dati non sensibili
+usati come chiavi per recuperare le credenziali reali dal database server-side.
+"""
+
 import asyncio
 import urllib3
 
@@ -8,7 +35,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.api.auth.auth_handler import decode_access_token
 from app.infrastructure.k8s_factory import K8sClientFactory
 from app.core.core_manager import CoreManager
-from app.infrastructure.database import SessionLocal, ClusterModel
+from app.infrastructure.database import SessionLocal, ClusterModel, ProfileModel
 
 
 security = HTTPBearer()
@@ -18,20 +45,7 @@ async def get_current_core_manager(
     res: HTTPAuthorizationCredentials = Depends(security),
 ) -> CoreManager:
     """
-    Dependency FastAPI che autentica la richiesta e restituisce un CoreManager
-    configurato e pronto all'uso per il cluster specificato nel JWT.
-
-    Viene eseguita prima di ogni endpoint protetto e si occupa di:
-      1. Estrarre e validare il JWT dall'header Authorization.
-      2. Recuperare il CA Certificate del cluster dal database.
-      3. Istanziare i client K8s tramite la factory (in un thread separato).
-      4. Restituire il CoreManager al route handler.
-
-    Il punto 3 viene eseguito con `run_in_executor` perché K8sClientFactory.get_apis
-    è una funzione sincrona/bloccante (scrive un file temporaneo, alloca il pool
-    urllib3). Spostarla fuori dall'event loop asyncio garantisce che il gateway
-    rimanga responsivo anche durante la fase di setup del client, specialmente
-    quando il cluster è lento o irraggiungibile.
+    Dependency FastAPI: autentica la request e restituisce un CoreManager pronto.
 
     Args:
         res: Credenziali HTTP estratte automaticamente da FastAPI tramite HTTPBearer.
@@ -40,20 +54,20 @@ async def get_current_core_manager(
         CoreManager configurato per il cluster e il profilo indicati nel JWT.
 
     Raises:
-        HTTPException 401: JWT assente, malformato o scaduto.
-        HTTPException 404: Cluster non trovato nel database.
-        HTTPException 503: Impossibile inizializzare il client K8s (errore factory).
+        HTTPException 401: JWT assente, malformato, scaduto o payload incompleto.
+        HTTPException 404: Cluster o profilo non trovati nel database.
+        HTTPException 503: Impossibile inizializzare il client K8s.
     """
 
     # ------------------------------------------------------------------
-    # Step 1: Decodifica e validazione del JWT
+    # Step 1 — Decodifica e validazione del JWT
     # ------------------------------------------------------------------
-    # decode_access_token solleva un'eccezione propria in caso di token
-    # invalido o scaduto; la convertiamo in un 401 standard per FastAPI.
     token = res.credentials
 
     try:
         payload = decode_access_token(token)
+    except HTTPException:
+        raise  # decode_access_token solleva già HTTPException corrette
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -63,63 +77,71 @@ async def get_current_core_manager(
 
     cluster_id: str | None = payload.get("cluster_id")
     cluster_host: str | None = payload.get("cluster_host")
-    k8s_token: str | None = payload.get("k8s_token")
+    profile: str | None = payload.get("profile")
 
-    # Verifica che i campi obbligatori siano presenti nel payload.
-    # Un JWT valido ma con payload incompleto indica una corruzione o
-    # una versione precedente del token: rifiutiamo con 401.
-    if not all([cluster_id, cluster_host, k8s_token]):
+    # Il JWT non contiene più k8s_token: verifichiamo solo i campi presenti
+    if not all([cluster_id, cluster_host, profile]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Payload JWT incompleto: campi obbligatori mancanti.",
+            detail="Payload JWT incompleto: cluster_id, cluster_host o profile mancanti.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     # ------------------------------------------------------------------
-    # Step 2: Recupero del CA Certificate dal database
+    # Step 2 — Recupero credenziali dal database
     # ------------------------------------------------------------------
-    # Il CA Certificate non viene incluso nel JWT (troppo grande e non
-    # necessario lato client): viene recuperato dal DB ad ogni richiesta
-    # usando il cluster_id come chiave. Questo garantisce che una rotazione
-    # del certificato sia immediatamente effettiva senza re-emettere token.
+    # CA Certificate + k8s_token vengono recuperati server-side.
+    # Il k8s_token non viaggia nel JWT: rimane nel DB e viene letto qui
+    # ad ogni request, esattamente come il CA cert.
     ca_cert: str | None = None
+    k8s_token: str | None = None
 
     db = SessionLocal()
     try:
-        cluster = db.query(ClusterModel).filter(ClusterModel.id == cluster_id).first()
+        # Cluster: necessario per CA cert e per validare l'esistenza
+        cluster = db.query(ClusterModel).filter(
+            ClusterModel.id == cluster_id
+        ).first()
 
         if cluster is None:
-            # Il cluster_id nel token non corrisponde a nessun cluster registrato.
-            # Può succedere se il cluster viene eliminato dal DB dopo l'emissione del JWT.
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Cluster '{cluster_id}' non trovato nel registro.",
             )
 
-        ca_cert = cluster.ca_cert  # Può essere None se il cluster non ha SSL configurato
+        ca_cert = cluster.ca_cert
+
+        # Profilo: necessario per il k8s_token
+        # Usiamo .upper() sul cluster_id per coerenza con ClusterRegistry
+        # (vedi registry.py: ProfileModel.cluster_id == cluster_id.upper())
+        profile_record = db.query(ProfileModel).filter(
+            ProfileModel.cluster_id == cluster_id.upper(),
+            ProfileModel.name == profile,
+        ).first()
+
+        if profile_record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Profilo '{profile}' non trovato per il cluster '{cluster_id}'.",
+            )
+
+        k8s_token = profile_record.k8s_token
 
     finally:
-        # Il blocco finally garantisce che la sessione DB venga sempre chiusa,
-        # anche se viene sollevata l'HTTPException sopra.
+        # Il finally garantisce chiusura della sessione DB anche in caso
+        # di HTTPException sollevata nel blocco try.
         db.close()
 
     # ------------------------------------------------------------------
-    # Step 3: Inizializzazione del client K8s (in executor)
+    # Step 3 — Inizializzazione del client K8s (in executor)
     # ------------------------------------------------------------------
-    # K8sClientFactory.get_apis è sincrona e potenzialmente bloccante:
-    # - Scrive un file temporaneo per il CA cert (I/O su disco).
-    # - Alloca il pool di connessioni urllib3.
-    #
-    # Eseguirla direttamente in una coroutine async bloccherebbe l'event loop
-    # di asyncio per tutta la sua durata, impedendo ad altre richieste di
-    # essere processate nel frattempo.
-    #
-    # Con run_in_executor la factory gira in un thread del ThreadPoolExecutor
-    # di default, liberando l'event loop immediatamente.
+    # K8sClientFactory.get_apis è sincrona: legge/scrive file su disco e
+    # alloca il pool urllib3. Eseguirla nell'event loop asyncio bloccherebbe
+    # il gateway per tutta la sua durata.
     try:
         loop = asyncio.get_running_loop()
         k8s_apis = await loop.run_in_executor(
-            None,  # None = ThreadPoolExecutor di default gestito da asyncio
+            None,
             partial(
                 K8sClientFactory.get_apis,
                 cluster_host=cluster_host,
@@ -128,19 +150,23 @@ async def get_current_core_manager(
                 cluster_id=cluster_id,
             ),
         )
+    except ValueError as exc:
+        # ValueError dalla factory = CA cert mancante o non valido
+        print(f"[get_core_manager] CA cert non valido per '{cluster_id}': {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        )
     except (urllib3.exceptions.MaxRetryError,
             urllib3.exceptions.ConnectTimeoutError,
             urllib3.exceptions.NewConnectionError,
             OSError) as exc:
-        # Errori di rete o filesystem durante la creazione del client.
-        # Non esponiamo dettagli interni al client: logghiamo e restituiamo 503.
-        print(f"[get_core_manager] Errore inizializzazione client K8s per '{cluster_id}': {exc}")
+        print(f"[get_core_manager] Errore rete/filesystem per '{cluster_id}': {exc}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Impossibile connettersi al cluster '{cluster_id}'. Verificare che sia raggiungibile.",
+            detail=f"Impossibile connettersi al cluster '{cluster_id}'.",
         )
     except Exception as exc:
-        # Fallback generico per errori imprevisti nella factory.
         print(f"[get_core_manager] Errore imprevisto factory per '{cluster_id}': {exc}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -148,6 +174,6 @@ async def get_current_core_manager(
         )
 
     # ------------------------------------------------------------------
-    # Step 4: Restituzione del CoreManager al route handler
+    # Step 4 — Restituzione del CoreManager
     # ------------------------------------------------------------------
     return CoreManager(k8s_apis)

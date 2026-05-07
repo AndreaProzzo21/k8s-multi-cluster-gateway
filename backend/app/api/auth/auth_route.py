@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Body, status
-from app.api.auth.auth_handler import create_access_token
+from app.api.auth.auth_handler import create_access_token, TOKEN_EXPIRE_HOURS
 
 auth_router = APIRouter()
 
@@ -20,5 +20,5 @@ async def login(
     return {
         "access_token": token, 
         "token_type": "bearer",
-        "expires_in": "8h"
+        "expires_in": f"{TOKEN_EXPIRE_HOURS}"
     }
