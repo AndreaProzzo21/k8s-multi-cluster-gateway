@@ -1,58 +1,125 @@
-import os
-import tempfile
-import urllib3
+"""
+k8s_factory.py
+==============
 
+Factory statica per la creazione di client Kubernetes autenticati e sicuri.
+
+Responsabilità
+--------------
+- Costruire un ``kubernetes.client.ApiClient`` configurato per un dato cluster,
+  completo di autenticazione Bearer Token e verifica TLS via CA Certificate.
+- Gestire il ciclo di vita dei file CA Certificate su disco tramite una cache
+  per-cluster, eliminando il leak di file temporanei che si accumulavano ad
+  ogni request nella versione precedente.
+- Applicare timeout e politiche di retry su urllib3 per evitare che richieste
+  verso cluster offline blocchino i thread del gateway indefinitamente.
+
+Sicurezza
+---------
+- **SSL obbligatorio**: se non viene fornito un CA Certificate valido, la
+  connessione viene rifiutata con un'eccezione esplicita. Nessun fallback
+  silenzioso a ``verify_ssl=False``.
+- Il CA Certificate viene scritto su disco una sola volta per cluster e
+  riusato da tutte le request successive (cache thread-safe con ``threading.Lock``).
+- Il token K8s non viene mai loggato.
+- I file cert vengono creati con permessi ``0o600`` (leggibili solo dal processo
+  corrente) tramite ``os.open`` con flag espliciti.
+
+Gestione timeout
+----------------
+Il timeout globale su ``socket.setdefaulttimeout`` è il meccanismo più affidabile
+in ambienti Docker dove i pacchetti TCP SYN verso host spenti vengono droppati
+silenziosamente (nessun RST -> urllib3 non riceve segnale di errore -> attesa
+infinita senza il timeout sul socket sottostante).
+
+I timeout urllib3 (``CONNECT_TIMEOUT``, ``READ_TIMEOUT``) vengono comunque
+configurati come doppia difesa per i casi in cui la connessione si apre ma
+i dati tardano ad arrivare.
+
+Cache dei certificati
+---------------------
+Il CA Certificate di un cluster è statico per tutta la vita del cluster.
+Scriverlo su disco ad ogni request causava:
+
+1. Accumulo illimitato di file ``.crt`` in ``/tmp``.
+2. I/O di scrittura inutile ad ogni richiesta.
+3. Nessun cleanup: i file sopravvivevano al lifecycle della request.
+
+La cache risolve tutto: ``cluster_id -> path_su_disco``. Il file viene creato
+solo al primo accesso per quel cluster; le request successive trovano il path
+in cache e lo riusano direttamente. Se il file viene eliminato dall'esterno
+(es. pulizia di ``/tmp``), viene ricreato automaticamente alla request successiva.
+
+Dipendenze esterne
+------------------
+- ``kubernetes`` >= 28.x
+- ``urllib3`` >= 1.26 (inclusa come dipendenza transitiva di ``kubernetes``)
+"""
+
+import os
+import socket
+import threading
+
+import urllib3
 from kubernetes import client
 from urllib3.util.retry import Retry
 from urllib3.util.timeout import Timeout
 
-import socket
+
+# ---------------------------------------------------------------------------
+# Timeout globale su socket Python
+#
+# Deve essere superiore a HARD_TIMEOUT nel router (10s) in modo che sia sempre
+# asyncio.wait_for a scattare per primo, restituendo un 504 pulito al frontend.
+# Il socket timeout è il fallback di ultimo livello per pacchetti droppati.
+# ---------------------------------------------------------------------------
 socket.setdefaulttimeout(15)
 
 
 # ---------------------------------------------------------------------------
-# Costanti di configurazione dei timeout e retry.
-# Centralizzate qui per essere facilmente modificabili senza toccare la logica.
+# Costanti di configurazione rete
 # ---------------------------------------------------------------------------
 
-# Secondi massimi per stabilire la connessione TCP con il cluster.
-# Se il cluster è spento o irraggiungibile, l'errore arriverà entro questo limite.
+# Secondi per stabilire la connessione TCP.
 CONNECT_TIMEOUT: int = 5
 
-# Secondi massimi per ricevere una risposta dopo che la connessione è aperta.
-# Copre il caso in cui il cluster accetta la connessione ma non risponde (es. overload).
+# Secondi per ricevere dati dopo che la connessione è aperta.
 READ_TIMEOUT: int = 15
 
-# Numero massimo di tentativi in caso di errore di rete transitorio.
-# Impostato a 1 (nessun retry automatico) per evitare che richieste a cluster
-# offline moltiplicino il tempo di attesa: preferiamo fallire veloce.
-MAX_RETRIES: int = 1
+# Nessun retry automatico: preferiamo fallire veloce con 504.
+# Retry su write (POST/PATCH/DELETE) potrebbe causare operazioni duplicate.
+MAX_RETRIES: int = 0
 
-# Pausa (in secondi) tra un tentativo e il successivo, con backoff esponenziale.
-# Con MAX_RETRIES=1 il valore è quasi ininfluente, ma è buona pratica definirlo.
+# Rilevante solo se MAX_RETRIES > 0.
 RETRY_BACKOFF: float = 0.5
 
-# Dimensione massima del pool di connessioni HTTP riusabili verso il cluster.
-# Un valore troppo basso crea colli di bottiglia con molte richieste parallele.
+# Connessioni HTTP riusabili verso il cluster per istanza di ApiClient.
 CONNECTION_POOL_SIZE: int = 10
+
+# Directory dove vengono scritti i file cert. Sovrascrivibile nei test.
+CERT_DIR: str = "/tmp"
 
 
 class K8sClientFactory:
     """
-    Factory statica responsabile della creazione e configurazione dei client
-    dell'SDK Kubernetes (CoreV1Api, AppsV1Api, RbacAuthorizationV1Api).
+    Factory statica per client Kubernetes.
 
-    Responsabilità principali:
-    - Configurare l'autenticazione via Bearer Token (Service Account).
-    - Gestire la verifica TLS tramite CA Certificate (da stringa, senza file permanenti).
-    - Applicare timeout e politiche di retry per prevenire il blocco del gateway
-      in caso di cluster irraggiungibili.
+    Espone un unico metodo pubblico: :meth:`get_apis`.
+    Tutti gli altri metodi sono privati e di supporto interno.
 
-    Note di sicurezza:
-    - Il CA Certificate viene scritto in un file temporaneo per la sola durata
-      della configurazione e rimosso subito dopo tramite un blocco finally.
-    - Il token K8s non viene mai loggato.
+    Thread safety
+    -------------
+    La cache dei certificati è protetta da ``threading.Lock``.
+    ``get_apis`` può essere chiamato concorrentemente da più thread
+    (come avviene con ``run_in_executor`` nel router) senza race condition.
     """
+
+    # Cache: cluster_id -> path assoluto del file .crt su disco.
+    # Variabile di classe condivisa tra tutte le chiamate statiche.
+    _cert_cache: dict[str, str] = {}
+
+    # Lock che protegge lettura + scrittura atomica sulla cache.
+    _cert_cache_lock: threading.Lock = threading.Lock()
 
     @staticmethod
     def get_apis(
@@ -62,163 +129,273 @@ class K8sClientFactory:
         cluster_id: str | None = None,
     ) -> dict:
         """
-        Costruisce e restituisce un dizionario con i client K8s pronti all'uso.
+        Costruisce e restituisce i client Kubernetes pronti all'uso.
 
-        Il metodo configura un singolo ApiClient condiviso tra tutti i client API,
-        in modo che timeout, autenticazione e pool di connessioni siano uniformi.
+        Configura un singolo ``ApiClient`` condiviso tra tutti i client API
+        (CoreV1, AppsV1, RbacV1, NetworkingV1) in modo che timeout,
+        autenticazione e pool di connessioni siano uniformi per la request.
 
-        Args:
-            cluster_host: URL dell'API Server Kubernetes (es. "https://1.2.3.4:6443").
-            k8s_token:    Service Account Token per l'autenticazione Bearer.
-            ca_cert:      Contenuto PEM del CA Certificate del cluster (opzionale).
-                          Se assente o non valido, la verifica SSL viene disabilitata.
-            cluster_id:   Identificativo del cluster, usato solo per il logging.
+        Parameters
+        ----------
+        cluster_host : str
+            URL dell'API Server K8s, es. ``"https://10.0.0.1:6443"``.
+        k8s_token : str
+            Service Account Token per l'autenticazione Bearer.
+            Non viene mai loggato.
+        ca_cert : str | None
+            Contenuto PEM del CA Certificate del cluster (stringa completa,
+            inclusi i delimitatori ``-----BEGIN CERTIFICATE-----``).
+            Se ``None`` o non valido, viene sollevato ``ValueError`` —
+            non esiste fallback a connessioni non verificate.
+        cluster_id : str | None
+            Identificativo del cluster. Usato come chiave della cert cache
+            e nei messaggi di log.
 
-        Returns:
-            Dict con chiavi "core_v1", "apps_v1", "rbac_v1" mappate ai rispettivi
-            client dell'SDK Kubernetes, tutti configurati con lo stesso ApiClient.
+        Returns
+        -------
+        dict
+            Dizionario con chiavi:
+            ``"core_v1"``, ``"apps_v1"``, ``"rbac_v1"``, ``"networking_v1"``
+            mappate ai rispettivi client dell'SDK Kubernetes.
 
-        Raises:
-            Non solleva eccezioni proprie: eventuali errori di connessione vengono
-            propagati al chiamante (tipicamente CoreManager._handle_exception).
+        Raises
+        ------
+        ValueError
+            Se ``ca_cert`` è assente o non contiene un certificato PEM valido.
+        OSError
+            Se la scrittura del file cert su disco fallisce.
         """
+        safe_id = K8sClientFactory._sanitize_cluster_id(cluster_id or "unknown")
+
+        # --- Configurazione base ---
         configuration = client.Configuration()
         configuration.host = cluster_host
-
-        # --- Autenticazione ---
-        # Il token viene iniettato come header "Authorization: Bearer <token>"
-        # su ogni richiesta HTTP effettuata dall'SDK.
         configuration.api_key["authorization"] = k8s_token
         configuration.api_key_prefix["authorization"] = "Bearer"
-
-        # --- Dimensione pool di connessioni ---
-        # Controlla quante connessioni HTTP vengono mantenute aperte verso il cluster.
         configuration.connection_pool_maxsize = CONNECTION_POOL_SIZE
 
-        # _configure_tls restituisce (configuration, handle_file_temporaneo | None).
-        # L'handle va tenuto vivo per tutta la durata dell'api_client: urllib3
-        # rilegge il file dal disco a ogni connessione TLS.
-        configuration, ca_cert_tmp_file = K8sClientFactory._configure_tls(
-            configuration, ca_cert, cluster_id
+        # --- TLS obbligatorio ---
+        cert_path = K8sClientFactory._get_or_create_cert_file(
+            ca_cert=ca_cert,
+            cluster_id=safe_id,
         )
+        configuration.verify_ssl = True
+        configuration.ssl_ca_cert = cert_path
 
+        # --- ApiClient e timeout ---
         api_client = client.ApiClient(configuration)
-
-        # Ancoriamo il file temporaneo all'api_client con un attributo custom.
-        # Finché l'api_client esiste (durata della singola request), il GC non
-        # toccherà il file. Quando l'api_client viene distrutto, il riferimento
-        # viene rilasciato e il file può essere pulito dal SO.
-        api_client._ca_cert_tmp_file = ca_cert_tmp_file
-
         K8sClientFactory._apply_network_policies(api_client)
 
         return {
-            "core_v1": client.CoreV1Api(api_client),
-            "apps_v1": client.AppsV1Api(api_client),
-            "rbac_v1": client.RbacAuthorizationV1Api(api_client),
-            "networking_v1": client.NetworkingV1Api(api_client),
+            "core_v1":        client.CoreV1Api(api_client),
+            "apps_v1":        client.AppsV1Api(api_client),
+            "rbac_v1":        client.RbacAuthorizationV1Api(api_client),
+            "networking_v1":  client.NetworkingV1Api(api_client),
         }
 
     # ---------------------------------------------------------------------------
-    # Metodi privati di supporto
+    # Cache dei certificati
     # ---------------------------------------------------------------------------
 
     @staticmethod
-    def _configure_tls(
-        configuration: client.Configuration,
-        ca_cert: str | None,
-        cluster_id: str | None,
-    ) -> tuple[client.Configuration, object]:
+    def _sanitize_cluster_id(cluster_id: str) -> str:
         """
-        Configura la verifica SSL sulla configurazione K8s.
+        Normalizza il cluster_id per uso sicuro come componente di nome file.
 
-        Se viene fornito un CA Certificate PEM valido, lo scrive in un file
-        temporaneo con delete=False e restituisce l'oggetto file insieme alla
-        configurazione. Il file DEVE restare su disco per tutta la durata
-        dell'api_client: urllib3 non carica il certificato in memoria alla
-        configurazione, ma lo rilegge dal path a ogni nuova connessione TLS.
-        Il chiamante è responsabile di tenere vivo il riferimento al file
-        (assegnandolo a un attributo dell'api_client) per evitare che il
-        garbage collector lo chiuda e lo cancelli.
+        Conserva solo caratteri alfanumerici, trattini e underscore.
+        Previene path traversal (es. ``../../etc/passwd``) nel nome del file
+        cert costruito da :meth:`_get_or_create_cert_file`.
 
-        Se il certificato è assente o non valido, la verifica SSL viene
-        disabilitata e i warning di urllib3 soppressi.
+        Parameters
+        ----------
+        cluster_id : str
+            ID grezzo del cluster proveniente dal JWT.
 
-        Args:
-            configuration: Oggetto Configuration da modificare in-place.
-            ca_cert:       Stringa PEM del certificato CA (o None).
-            cluster_id:    ID del cluster, usato solo per i messaggi di log.
-
-        Returns:
-            Tuple (configuration, tmp_file_handle | None).
-            Il secondo elemento è il NamedTemporaryFile aperto (da tenere vivo)
-            oppure None se SSL è disabilitato.
+        Returns
+        -------
+        str
+            ID sanitizzato. Se il risultato sarebbe vuoto, restituisce ``"unknown"``.
         """
-        if ca_cert and "-----BEGIN CERTIFICATE-----" in ca_cert:
+        sanitized = "".join(c for c in cluster_id if c.isalnum() or c in "-_")
+        return sanitized if sanitized else "unknown"
+
+    @staticmethod
+    def _get_or_create_cert_file(ca_cert: str | None, cluster_id: str) -> str:
+        """
+        Restituisce il path del file CA Certificate per questo cluster.
+
+        Algoritmo:
+
+        1. Valida che ``ca_cert`` sia un PEM valido (solleva ``ValueError`` altrimenti).
+        2. Acquisisce il lock sulla cache.
+        3. Se ``cluster_id`` è in cache **e** il file esiste su disco → restituisce
+           il path cached senza alcuna I/O di scrittura.
+        4. Altrimenti scrive il cert su disco con permessi ``0o600`` e aggiorna
+           la cache.
+
+        L'intera operazione check + write è atomica rispetto ad altri thread
+        grazie al ``_cert_cache_lock``, prevenendo race condition su primo accesso
+        concorrente per lo stesso cluster.
+
+        Parameters
+        ----------
+        ca_cert : str | None
+            Contenuto PEM del certificato.
+        cluster_id : str
+            ID del cluster già sanitizzato, usato come parte del nome file.
+
+        Returns
+        -------
+        str
+            Path assoluto del file ``.crt`` su disco.
+
+        Raises
+        ------
+        ValueError
+            Se ``ca_cert`` è None o non contiene un header PEM valido.
+        OSError
+            Se la scrittura su disco fallisce.
+        """
+        if not ca_cert or "-----BEGIN CERTIFICATE-----" not in ca_cert:
+            raise ValueError(
+                f"CA Certificate mancante o non valido per il cluster '{cluster_id}'. "
+                "Connessioni TLS non verificate non sono permesse. "
+                "Caricare un CA Certificate PEM valido tramite l'API di registrazione cluster."
+            )
+
+        cert_path = os.path.join(CERT_DIR, f"k8s_ca_{cluster_id}.crt")
+
+        with K8sClientFactory._cert_cache_lock:
+            cached_path = K8sClientFactory._cert_cache.get(cluster_id)
+
+            # Cache hit: file ancora presente su disco → riusa senza I/O
+            if cached_path and os.path.exists(cached_path):
+                return cached_path
+
+            # Cache miss o file eliminato dall'esterno → (ri)crea
+            K8sClientFactory._write_cert_file(cert_path, ca_cert, cluster_id)
+            K8sClientFactory._cert_cache[cluster_id] = cert_path
+            return cert_path
+
+    @staticmethod
+    def _write_cert_file(path: str, ca_cert: str, cluster_id: str) -> None:
+        """
+        Scrive il CA Certificate su disco con permessi restrittivi (``0o600``).
+
+        Usa ``os.open`` con flag espliciti invece di ``open()`` per impostare
+        i permessi Unix al momento della creazione del file, eliminando la
+        finestra di vulnerabilità tra creazione e ``chmod`` che si avrebbe
+        con il metodo standard.
+
+        In caso di errore di scrittura, il file parzialmente scritto viene
+        rimosso per evitare che un cert corrotto venga messo in cache.
+
+        Parameters
+        ----------
+        path : str
+            Path assoluto dove scrivere il file.
+        ca_cert : str
+            Contenuto PEM del certificato.
+        cluster_id : str
+            Usato solo per i messaggi di log e nelle eccezioni.
+
+        Raises
+        ------
+        OSError
+            Se la creazione o scrittura del file fallisce.
+        """
+        fd = os.open(path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(ca_cert)
+            print(f"[K8sClientFactory] CA cert scritto per cluster '{cluster_id}': {path}")
+        except OSError as exc:
+            # Rimuove il file parziale per non lasciare un cert corrotto su disco.
             try:
-                # delete=False: il file non viene cancellato alla chiusura
-                # dell'handle. Lo teniamo vivo tramite il riferimento restituito.
-                tmp_file = tempfile.NamedTemporaryFile(
-                    mode="w",
-                    suffix=".crt",
-                    delete=False
-                )
-                tmp_file.write(ca_cert)
-                tmp_file.flush()
-                # NON chiamiamo tmp_file.close() qui: lo teniamo aperto
-                # così il riferimento è chiaramente vivo finché serve.
+                os.remove(path)
+            except OSError:
+                pass
+            raise OSError(
+                f"Impossibile scrivere il CA cert per '{cluster_id}' in {path}: {exc}"
+            ) from exc
 
-                configuration.verify_ssl = True
-                configuration.ssl_ca_cert = tmp_file.name
-                print(f"[K8sClientFactory] SSL configurato per cluster '{cluster_id}' ({tmp_file.name})")
+    @staticmethod
+    def invalidate_cert_cache(cluster_id: str | None = None) -> None:
+        """
+        Invalida la cache dei certificati per forzarne la riscrittura.
 
-                return configuration, tmp_file
+        Da chiamare quando il CA Certificate di un cluster viene aggiornato
+        tramite l'API di gestione del gateway. Senza questa chiamata, il vecchio
+        cert rimarrebbe in cache fino al riavvio del container.
 
-            except Exception as exc:
-                print(f"[K8sClientFactory] Errore scrittura CA cert per '{cluster_id}': {exc}. Fallback a verify_ssl=False.")
-                configuration.verify_ssl = False
-                return configuration, None
-        else:
-            configuration.verify_ssl = False
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-            print(f"[K8sClientFactory] verify_ssl=False per cluster '{cluster_id}' (nessun CA cert fornito)")
-            return configuration, None
+        Parameters
+        ----------
+        cluster_id : str | None
+            Se fornito, invalida solo il cluster specificato e rimuove il suo
+            file da disco.
+            Se ``None``, invalida l'intera cache e rimuove tutti i file cert.
+
+        Examples
+        --------
+        Invalidazione singola (dopo aggiornamento cert di un cluster)::
+
+            K8sClientFactory.invalidate_cert_cache("K3S-PROD")
+
+        Invalidazione totale (es. in un endpoint di manutenzione)::
+
+            K8sClientFactory.invalidate_cert_cache()
+        """
+        with K8sClientFactory._cert_cache_lock:
+            if cluster_id is not None:
+                safe_id = K8sClientFactory._sanitize_cluster_id(cluster_id)
+                removed_path = K8sClientFactory._cert_cache.pop(safe_id, None)
+                if removed_path:
+                    try:
+                        os.remove(removed_path)
+                    except OSError:
+                        pass
+                    print(f"[K8sClientFactory] Cache invalidata per cluster '{safe_id}'")
+            else:
+                for path in K8sClientFactory._cert_cache.values():
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
+                K8sClientFactory._cert_cache.clear()
+                print("[K8sClientFactory] Cache certificati svuotata completamente")
+
+    # ---------------------------------------------------------------------------
+    # Configurazione rete
+    # ---------------------------------------------------------------------------
 
     @staticmethod
     def _apply_network_policies(api_client: client.ApiClient) -> None:
         """
-        Applica timeout e politiche di retry al pool di connessioni HTTP dell'ApiClient.
+        Inietta timeout e retry policy nel pool di connessioni urllib3.
 
-        Questo è il fix centrale per il bug di "gateway appeso":
-        senza timeout, una richiesta a un cluster offline blocca il thread
-        del worker per un tempo indefinito (default TCP: minuti).
+        Lavora in sinergia con ``socket.setdefaulttimeout`` su tre livelli:
 
-        Con questa configurazione:
-        - CONNECT_TIMEOUT: se il cluster non accetta la connessione TCP entro N secondi → errore.
-        - READ_TIMEOUT: se la connessione è aperta ma non arrivano dati entro N secondi → errore.
-        - MAX_RETRIES=1: nessun retry automatico, preferiamo fallire veloce e restituire
-          un 504 al client piuttosto che moltiplicare il tempo di attesa.
+        1. ``socket.setdefaulttimeout(15)`` — TCP puro, prima di urllib3.
+           Gestisce pacchetti droppati silenziosamente (host spento).
+        2. ``Timeout(connect=5, read=15)`` — urllib3, livello HTTP.
+           Gestisce connessioni aperte ma dati tardivi.
+        3. ``asyncio.wait_for(timeout=10)`` nel router — livello applicativo.
+           Scatta per primo (10s < 15s) e restituisce 504 pulito al frontend,
+           liberando l'event loop mentre il thread sottostante si chiude da solo.
 
-        Args:
-            api_client: ApiClient già istanziato, modificato in-place sul pool urllib3.
+        ``MAX_RETRIES=0``: retry disabilitati. Su operazioni non-idempotenti
+        (POST, PATCH, DELETE) un retry automatico potrebbe creare risorse
+        duplicate o eseguire operazioni distruttive due volte.
+
+        Parameters
+        ----------
+        api_client : kubernetes.client.ApiClient
+            ApiClient già istanziato. Il pool urllib3 viene modificato in-place.
         """
         timeout = Timeout(connect=CONNECT_TIMEOUT, read=READ_TIMEOUT)
+        retry_policy = Retry(total=MAX_RETRIES, backoff_factor=RETRY_BACKOFF)
 
-        retry_policy = Retry(
-            total=MAX_RETRIES,
-            backoff_factor=RETRY_BACKOFF,
-            # Non ritentiamo su errori 4xx/5xx HTTP: solo su errori di rete puri.
-            status_forcelist=None,
-            # Evitiamo retry su metodi non idempotenti (POST, PATCH)
-            # per non rischiare di applicare la stessa operazione due volte.
-            allowed_methods={"GET", "HEAD", "OPTIONS"},
-        )
-
-        # L'ApiClient K8s usa urllib3.PoolManager internamente.
-        # Aggiorniamo le keyword args del pool che vengono passate a ogni connessione.
-        api_client.rest_client.pool_manager.connection_pool_kw.update(
-            {
-                "timeout": timeout,
-                "retries": retry_policy,
-            }
-        )
+        api_client.rest_client.pool_manager.connection_pool_kw.update({
+            "timeout": timeout,
+            "retries": retry_policy,
+        })
