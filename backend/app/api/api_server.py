@@ -1,29 +1,70 @@
-# app/api/api_server.py
-from fastapi.middleware.cors import CORSMiddleware
+import time
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+# Import interni
 from app.core.exceptions import K8sBaseException
 from app.api.routes.k8s_routes import router as k8s_router
 from app.api.auth.auth_route import auth_router
 from app.api.auth.admin_route import admin_router
 from app.infrastructure.database import init_db
 
+# Configurazione Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("k8s_gateway")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Gestisce l'avvio e lo spegnimento dell'applicazione.
+    Sostituisce i vecchi eventi startup/shutdown.
+    """
+    logger.info("Avvio K8S Digital Twin Gateway...")
+    # Inizializzazione DB (es. creazione tabelle se non esistono)
+    init_db()
+    yield
+    logger.info("Spegnimento Gateway...")
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="K8S Digital Twin Gateway",
         description="API Proxy Stateless per la gestione multi-cluster via JWT",
-        version="2.0.0"
+        version="2.0.0",
+        lifespan=lifespan
     )
 
-    # Configurazione CORS per permettere al Frontend di comunicare con il Gateway
+    # --- MIDDLEWARE ---
+
+    # 1. CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=["*"], # In produzione, specifica i domini reali
+        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    # Global Exception Handler per catturare i nostri errori personalizzati
+    # 2. Timing Middleware (Logging & Performance)
+    @app.middleware("http")
+    async def add_process_time_header(request: Request, call_next):
+        start_time = time.perf_counter()
+        
+        response = await call_next(request)
+        
+        process_time = time.perf_counter() - start_time
+        response.headers["X-Process-Time"] = f"{process_time:.4f}s"
+        
+        logger.info(
+            f"Method: {request.method} | Path: {request.url.path} | "
+            f"Status: {response.status_code} | Duration: {process_time:.4f}s"
+        )
+        return response
+
+    # --- EXCEPTION HANDLERS ---
+
     @app.exception_handler(K8sBaseException)
     async def k8s_exception_handler(request: Request, exc: K8sBaseException):
         return JSONResponse(
@@ -37,15 +78,13 @@ def create_app() -> FastAPI:
 
     # --- REGISTRAZIONE ROTTE ---
     
-    # Rotte per l'autenticazione (Pubbliche: /auth/login)
+    # Rotte Pubbliche
     app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
     
-    # Rotte operative Kubernetes (Protette via JWT: /api/v1/...)
+    # Rotte Protette
     app.include_router(k8s_router, prefix="/api/v1", tags=["Kubernetes Operations"])
-
-    app.include_router(admin_router, prefix="/admin", tags=["Admin Operations"])
     
-    # Creiamo DB che contiene i dati dei cluster
-    init_db()
+    # Rotte Administrative
+    app.include_router(admin_router, prefix="/admin", tags=["Admin Operations"])
 
     return app
