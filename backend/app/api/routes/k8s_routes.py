@@ -84,6 +84,17 @@ async def get_all_namespaces(
     """
     return await _run(manager.list_namespaces)
 
+@router.delete("/namespaces/{name}")
+async def delete_cluster_namespace(
+    name: str,
+    manager: CoreManager = Depends(get_current_core_manager)
+):
+    """
+    Rimuove un namespace dal cluster.
+    Attenzione: l'operazione è distruttiva per tutte le risorse nel namespace.
+    """
+    return await _run(manager.delete_namespace, name)
+
 
 # ---------------------------------------------------------------------------
 # CONFIGMAPS, SECRETS, EVENTS

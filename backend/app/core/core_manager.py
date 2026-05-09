@@ -100,7 +100,7 @@ class CoreManager:
             ns_list = self.core_v1.list_namespace()
             return {
                 "can_list": True,
-                "items": [{"name": ns.metadata.name, "status": ns.status.phase} for ns in ns_list.items]
+                "items": [{"name": ns.metadata.name, "status": ns.status.phase, "creation_timestamp": ns.metadata.creation_timestamp.isoformat() if ns.metadata.creation_timestamp else None} for ns in ns_list.items]
             }
         except Exception as e:
             # Re-raise se è un problema di rete/timeout: non vogliamo mascherarlo
@@ -111,6 +111,19 @@ class CoreManager:
                 self._handle_exception(e, "List Namespaces")
             # Solo per 403/401 restituiamo il fallback silenzioso
             return {"can_list": False, "items": []}
+            
+    def delete_namespace(self, name: str):
+        """Elimina un namespace dal cluster."""
+        try:
+            # L'eliminazione in K8s è asincrona per default
+            self.core_v1.delete_namespace(name=name)
+            
+            return {
+                "status": "success",
+                "message": f"Eliminazione del namespace '{name}' avviata."
+            }
+        except Exception as e:
+            self._handle_exception(e, f"Eliminazione Namespace '{name}'")
 
     # --- CONFIGMAPS, SECRETS, EVENTS ---
 
