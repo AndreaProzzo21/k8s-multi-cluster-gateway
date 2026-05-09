@@ -15,6 +15,7 @@ services:
       - ./backend/app:/app/app
       # Persistenza Database
       - ./backend/data:/app/data
+      - helm_repos:/tmp/helm_repos
     networks:
       - k8s_network
     restart: always
@@ -36,3 +37,6 @@ services:
 networks:
   k8s_network:
     driver: bridge
+
+volumes:
+  helm_repos:
