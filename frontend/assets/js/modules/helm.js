@@ -1,0 +1,990 @@
+/**
+ * helm.js
+ * =======
+ * Modulo frontend per la Helm Application Console.
+ * Gestisce tutte le interazioni con gli endpoint /api/v1/helm/*
+ *
+ * Struttura:
+ *   - Releases   : loadReleases, viewReleaseStatus, viewReleaseHistory,
+ *                  viewReleaseValues, confirmUninstall, confirmRollback
+ *   - Deploy     : showChartSearch, installChart, showZipUpload, deployFromZip
+ *   - Repos      : loadRepositories, showAddRepoForm, submitAddRepo, updateRepos
+ *   - Helpers UI : renderHelmStatus, renderRevisionBadge, _helmPost, _helmDelete
+ */
+
+// ---------------------------------------------------------------------------
+// HELPER BASE: chiamate verso gli endpoint /helm/* e /repos/*
+// Il prefisso è /api/v1 come per le altre route (definito in api.js)
+// ---------------------------------------------------------------------------
+
+const HELM_BASE = "";   // relativo: apiCall gestisce già il prefisso API_BASE
+
+/**
+ * Wrapper per POST verso endpoint helm con body JSON opzionale.
+ * Costruisce la query string per i parametri di install/upgrade.
+ */
+async function _helmPost(path, queryParams = {}, jsonBody = null) {
+    const qs = new URLSearchParams(
+        Object.fromEntries(Object.entries(queryParams).filter(([, v]) => v !== null && v !== undefined && v !== ""))
+    ).toString();
+    const url = qs ? `${path}?${qs}` : path;
+    return apiCall(url, "POST", false, jsonBody || undefined);
+}
+
+async function _helmDelete(path, queryParams = {}) {
+    const qs = new URLSearchParams(
+        Object.fromEntries(Object.entries(queryParams).filter(([, v]) => v !== null && v !== undefined))
+    ).toString();
+    const url = qs ? `${path}?${qs}` : path;
+    return apiCall(url, "DELETE");
+}
+
+
+// ---------------------------------------------------------------------------
+// BADGES & STATUS RENDERERS
+// ---------------------------------------------------------------------------
+
+function renderHelmStatus(status) {
+    const s = (status || "").toLowerCase();
+    const map = {
+        deployed:   { cls: "status-running",  label: "deployed"   },
+        failed:     { cls: "status-failed",   label: "failed"     },
+        pending:    { cls: "status-pending",  label: "pending"    },
+        superseded: { cls: "status-stopped",  label: "superseded" },
+        uninstalled:{ cls: "status-stopped",  label: "uninstalled"},
+        uninstalling:{ cls:"status-pending",  label: "uninstalling"},
+    };
+    const m = map[s] || { cls: "status-pending", label: status || "unknown" };
+    return `<span class="badge ${m.cls}">${m.label}</span>`;
+}
+
+function renderRevisionBadge(rev) {
+    return `<span style="
+        display:inline-block; padding:2px 10px;
+        border-radius:12px; font-size:0.72rem; font-weight:700;
+        background:#f1f5f9; color:#475569; border:1px solid #e2e8f0;
+    ">rev. ${rev}</span>`;
+}
+
+function _helmSpinner() {
+    return '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin fa-2x" style="color:var(--accent)"></i></div>';
+}
+
+function _helmEmpty(msg) {
+    return `<p style="text-align:center; margin-top:30px; color:var(--text-muted); font-size:0.9rem;">${msg}</p>`;
+}
+
+function _renderResultBox(result, successMsg = null) {
+    if (!result) return '';
+    const ok = result.success;
+    const msg = successMsg || result.stdout || result.stderr || (ok ? "Operation completed." : "Operation failed.");
+    const color = ok ? "var(--accent)" : "#ef4444";
+    const icon  = ok ? "fa-check-circle" : "fa-times-circle";
+    return `
+        <div style="margin-top:16px; padding:14px 16px; border-radius:10px;
+                    border-left:4px solid ${color}; background:${ok ? "rgba(59,130,246,0.05)" : "#fff5f5"};">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:${result.stderr && !ok ? '8px' : '0'}">
+                <i class="fas ${icon}" style="color:${color}; font-size:1rem;"></i>
+                <span style="font-size:0.85rem; color:#1e293b; font-weight:500;">${msg}</span>
+            </div>
+            ${result.stderr && !ok ? `<pre style="margin:0; font-size:0.75rem; color:#ef4444; white-space:pre-wrap;">${result.stderr}</pre>` : ""}
+        </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// NAMESPACE SELECTOR (riutilizzato dalla helm page)
+// ---------------------------------------------------------------------------
+
+async function loadNamespaceList() {
+    const container = document.getElementById('nsContextArea');
+    if (!container) return;
+    try {
+        const data = await apiCall('/namespaces');
+        const namespaces = data.items || [];
+
+        if (!data.can_list || namespaces.length === 0) {
+            showManualInput();
+            return;
+        }
+
+        let selectHtml = `<select id="nsSelect" onchange="updateNamespaceContext(this.value)"
+            style="padding:8px 12px; border-radius:8px; border:1px solid var(--border);
+                   font-size:0.82rem; background:#fff; cursor:pointer; min-width:180px;">`;
+        namespaces.forEach(ns => {
+            const sel = ns.name === window.currentNamespace ? 'selected' : '';
+            selectHtml += `<option value="${ns.name}" ${sel}>${ns.name}</option>`;
+        });
+        selectHtml += `</select>`;
+        container.innerHTML = selectHtml;
+    } catch (err) {
+        showManualInput();
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// RELEASES — lista principale
+// ---------------------------------------------------------------------------
+
+async function loadReleases() {
+    window.currentView = 'releases';
+    const ns = window.currentNamespace;
+    const resArea = document.getElementById('resultArea');
+    resArea.innerHTML = _helmSpinner();
+
+    try {
+        const result = await apiCall(`/helm/namespaces/${ns}/releases`);
+        const releases = result.data || [];
+
+        if (releases.length === 0) {
+            resArea.innerHTML = `
+                <h2>Installed Releases [${ns}]</h2>
+                ${_helmEmpty("No Helm releases found in this namespace.")}`;
+            return;
+        }
+
+        let html = `
+            <h2>Installed Releases [${ns}]</h2>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Release</th>
+                        <th>Chart</th>
+                        <th>App Version</th>
+                        <th>Revision</th>
+                        <th>Updated</th>
+                        <th>Status</th>
+                        <th style="text-align:right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        releases.forEach(r => {
+            const updated = r.updated ? r.updated.substring(0, 16).replace("T", " ") : "N/A";
+            html += `
+                <tr>
+                    <td><b>${r.name}</b></td>
+                    <td><code style="font-size:0.78rem">${r.chart}</code></td>
+                    <td><span style="color:var(--text-muted); font-size:0.82rem">${r.app_version || "—"}</span></td>
+                    <td>${renderRevisionBadge(r.revision)}</td>
+                    <td><small style="color:var(--text-muted)">${updated}</small></td>
+                    <td>${renderHelmStatus(r.status)}</td>
+                    <td style="text-align:right; white-space:nowrap;">
+                        <button onclick="viewReleaseStatus('${r.name}')" class="btn-small table-btn" title="Status / Manifest"><i class="fas fa-info-circle"></i></button>
+                        <button onclick="viewReleaseHistory('${r.name}')" class="btn-small table-btn" title="History"><i class="fas fa-history"></i></button>
+                        <button onclick="viewReleaseValues('${r.name}')" class="btn-small table-btn" title="Values"><i class="fas fa-sliders-h"></i></button>
+                        <button onclick="confirmUninstall('${r.name}')" class="btn-small delete-btn" title="Uninstall"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
+        });
+
+        resArea.innerHTML = html + '</tbody></table>';
+
+    } catch (err) {
+        if (err.message === "RESTRICTED") renderRestrictedAccess();
+        else showError(err.message);
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// RELEASES — status detail (inline expand)
+// ---------------------------------------------------------------------------
+
+async function viewReleaseStatus(name) {
+    const rows = document.querySelectorAll(`#status-detail-${name}`);
+    rows.forEach(r => r.remove());
+
+    const allRows = Array.from(document.querySelectorAll('table.data-table tbody tr'));
+    const targetRow = allRows.find(tr => tr.querySelector('td b')?.textContent === name);
+    if (!targetRow) return;
+
+    targetRow.insertAdjacentHTML('afterend', `
+        <tr id="status-detail-${name}">
+            <td colspan="7">
+                <div style="padding:14px; background:#f8fafc; border-radius:8px; margin:4px 0;">
+                    <i class="fas fa-spinner fa-spin"></i> Loading status...
+                </div>
+            </td>
+        </tr>`);
+
+    try {
+        const ns = window.currentNamespace;
+        const result = await apiCall(`/helm/namespaces/${ns}/releases/${name}/status`);
+        const data = result.data || {};
+        const info = data.info || {};
+
+        const firstDeployed = info.first_deployed ? info.first_deployed.substring(0,16).replace("T"," ") : "—";
+        const lastDeployed  = info.last_deployed  ? info.last_deployed.substring(0,16).replace("T"," ")  : "—";
+
+        document.getElementById(`status-detail-${name}`).innerHTML = `
+            <td colspan="7">
+                <div style="padding:16px; background:#f8fafc; border-radius:8px; margin:4px 0; border:1px solid var(--border);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <b style="font-size:0.95rem;">Release Detail: ${name}</b>
+                        <button onclick="document.getElementById('status-detail-${name}').remove()"
+                                style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem;">&times;</button>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:14px;">
+                        <div><small style="color:var(--text-muted); font-size:0.7rem; text-transform:uppercase;">Status</small><br>${renderHelmStatus(info.status)}</div>
+                        <div><small style="color:var(--text-muted); font-size:0.7rem; text-transform:uppercase;">First Deployed</small><br><span style="font-size:0.83rem">${firstDeployed}</span></div>
+                        <div><small style="color:var(--text-muted); font-size:0.7rem; text-transform:uppercase;">Last Deployed</small><br><span style="font-size:0.83rem">${lastDeployed}</span></div>
+                    </div>
+                    ${info.notes ? `
+                    <div style="margin-bottom:12px;">
+                        <small style="color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; display:block; margin-bottom:4px;">Notes</small>
+                        <pre style="margin:0; font-size:0.78rem; background:#fff; border:1px solid var(--border); border-radius:6px; padding:10px; white-space:pre-wrap; color:#334155;">${info.notes}</pre>
+                    </div>` : ""}
+                    ${data.manifest ? `
+                    <details style="margin-top:8px;">
+                        <summary style="cursor:pointer; font-size:0.82rem; color:var(--accent); font-weight:600;">View Manifest YAML</summary>
+                        <pre style="margin-top:8px; font-size:0.73rem; background:#1e293b; color:#e2e8f0; border-radius:8px; padding:14px; overflow-x:auto; max-height:320px; white-space:pre-wrap;">${data.manifest}</pre>
+                    </details>` : ""}
+                </div>
+            </td>`;
+
+    } catch (err) {
+        document.getElementById(`status-detail-${name}`).innerHTML = `
+            <td colspan="7"><div style="padding:12px; color:#ef4444; font-size:0.85rem;">Error: ${err.message}</div></td>`;
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// RELEASES — history
+// ---------------------------------------------------------------------------
+
+async function viewReleaseHistory(name) {
+    const rows = document.querySelectorAll(`#history-detail-${name}`);
+    rows.forEach(r => r.remove());
+
+    const allRows = Array.from(document.querySelectorAll('table.data-table tbody tr'));
+    const targetRow = allRows.find(tr => tr.querySelector('td b')?.textContent === name);
+    if (!targetRow) return;
+
+    targetRow.insertAdjacentHTML('afterend', `
+        <tr id="history-detail-${name}">
+            <td colspan="7"><div style="padding:14px;"><i class="fas fa-spinner fa-spin"></i> Loading history...</div></td>
+        </tr>`);
+
+    try {
+        const ns = window.currentNamespace;
+        const result = await apiCall(`/helm/namespaces/${ns}/releases/${name}/history`);
+        const history = result.data || [];
+
+        let histHtml = `
+            <div style="padding:16px; background:#f8fafc; border-radius:8px; border:1px solid var(--border);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <b style="font-size:0.95rem;">Revision History: ${name}</b>
+                    <button onclick="document.getElementById('history-detail-${name}').remove()"
+                            style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem;">&times;</button>
+                </div>
+                <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+                    <thead>
+                        <tr style="border-bottom:1px solid var(--border);">
+                            <th style="padding:6px 10px; text-align:left; color:var(--text-muted); font-weight:600;">Rev</th>
+                            <th style="padding:6px 10px; text-align:left; color:var(--text-muted); font-weight:600;">Chart</th>
+                            <th style="padding:6px 10px; text-align:left; color:var(--text-muted); font-weight:600;">Updated</th>
+                            <th style="padding:6px 10px; text-align:left; color:var(--text-muted); font-weight:600;">Status</th>
+                            <th style="padding:6px 10px; text-align:left; color:var(--text-muted); font-weight:600;">Description</th>
+                            <th style="padding:6px 10px; text-align:right;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+        history.forEach(h => {
+            const updated = h.updated ? h.updated.substring(0,16).replace("T"," ") : "—";
+            histHtml += `
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:7px 10px;">${renderRevisionBadge(h.revision)}</td>
+                    <td style="padding:7px 10px;"><code style="font-size:0.75rem">${h.chart}</code></td>
+                    <td style="padding:7px 10px; color:var(--text-muted)">${updated}</td>
+                    <td style="padding:7px 10px;">${renderHelmStatus(h.status)}</td>
+                    <td style="padding:7px 10px; color:#64748b; font-size:0.78rem;">${h.description || "—"}</td>
+                    <td style="padding:7px 10px; text-align:right;">
+                        <button onclick="confirmRollback('${name}', ${h.revision})"
+                                class="btn-small restart-btn" title="Rollback to this revision">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                    </td>
+                </tr>`;
+        });
+
+        histHtml += `</tbody></table></div>`;
+
+        document.getElementById(`history-detail-${name}`).innerHTML = `<td colspan="7">${histHtml}</td>`;
+
+    } catch (err) {
+        document.getElementById(`history-detail-${name}`).innerHTML = `
+            <td colspan="7"><div style="padding:12px; color:#ef4444; font-size:0.85rem;">Error: ${err.message}</div></td>`;
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// RELEASES — values
+// ---------------------------------------------------------------------------
+
+async function viewReleaseValues(name) {
+    const rows = document.querySelectorAll(`#values-detail-${name}`);
+    rows.forEach(r => r.remove());
+
+    const allRows = Array.from(document.querySelectorAll('table.data-table tbody tr'));
+    const targetRow = allRows.find(tr => tr.querySelector('td b')?.textContent === name);
+    if (!targetRow) return;
+
+    targetRow.insertAdjacentHTML('afterend', `
+        <tr id="values-detail-${name}">
+            <td colspan="7"><div style="padding:14px;"><i class="fas fa-spinner fa-spin"></i> Loading values...</div></td>
+        </tr>`);
+
+    try {
+        const ns = window.currentNamespace;
+        const result = await apiCall(`/helm/namespaces/${ns}/releases/${name}/values`);
+        const values = result.data || {};
+
+        const valuesYaml = Object.keys(values).length > 0
+            ? JSON.stringify(values, null, 2)
+            : "(no override values — using chart defaults)";
+
+        document.getElementById(`values-detail-${name}`).innerHTML = `
+            <td colspan="7">
+                <div style="padding:16px; background:#f8fafc; border-radius:8px; border:1px solid var(--border);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <b style="font-size:0.95rem;">Applied Values: ${name}</b>
+                        <button onclick="document.getElementById('values-detail-${name}').remove()"
+                                style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem;">&times;</button>
+                    </div>
+                    <pre style="font-size:0.78rem; background:#1e293b; color:#e2e8f0; border-radius:8px;
+                                padding:14px; overflow-x:auto; max-height:280px; white-space:pre-wrap; margin:0;">${valuesYaml}</pre>
+                </div>
+            </td>`;
+
+    } catch (err) {
+        document.getElementById(`values-detail-${name}`).innerHTML = `
+            <td colspan="7"><div style="padding:12px; color:#ef4444; font-size:0.85rem;">Error: ${err.message}</div></td>`;
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// RELEASES — uninstall
+// ---------------------------------------------------------------------------
+
+async function confirmUninstall(name) {
+    if (!confirm(`Uninstall release "${name}" from namespace "${window.currentNamespace}"?\n\nThis will remove all Kubernetes resources managed by this release.`)) return;
+
+    const keepHistory = confirm(`Keep release history for future rollbacks?`);
+
+    try {
+        const ns = window.currentNamespace;
+        const result = await _helmDelete(`/helm/namespaces/${ns}/releases/${name}`, { keep_history: keepHistory });
+        alert(`Release "${name}" successfully uninstalled.`);
+        loadReleases();
+    } catch (err) {
+        showError(err.message);
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// RELEASES — rollback
+// ---------------------------------------------------------------------------
+
+async function confirmRollback(name, revision) {
+    if (!confirm(`Rollback release "${name}" to revision ${revision}?`)) return;
+
+    try {
+        const ns = window.currentNamespace;
+        const result = await _helmPost(`/helm/namespaces/${ns}/releases/${name}/rollback`, { revision });
+
+        // Chiudi la riga di history e ricarica
+        const histRow = document.getElementById(`history-detail-${name}`);
+        if (histRow) histRow.remove();
+
+        const resultBox = _renderResultBox(result, `Rollback to revision ${revision} completed.`);
+        document.querySelector('table.data-table')?.insertAdjacentHTML('afterend', resultBox);
+
+        setTimeout(() => loadReleases(), 1500);
+
+    } catch (err) {
+        showError(err.message);
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// CATALOG — search charts
+// ---------------------------------------------------------------------------
+
+function showChartSearch() {
+    window.currentView = 'search';
+    const resArea = document.getElementById('resultArea');
+    document.getElementById('controlsContainer').style.display = 'none';
+
+    resArea.innerHTML = `
+        <div class="deploy-container">
+            <h2>Search Charts</h2>
+            <div class="info-note" style="background:rgba(var(--accent-rgb),0.08); border-left:4px solid var(--accent);
+                 padding:12px 14px; border-radius:6px; margin-bottom:20px; font-size:0.85rem; line-height:1.5; color:var(--text-secondary);">
+                <i class="fas fa-info-circle" style="color:var(--accent); margin-right:8px;"></i>
+                Search across all configured Helm repositories. Add repositories first if needed.
+            </div>
+
+            <div style="display:flex; gap:10px; margin-bottom:24px;">
+                <input type="text" id="chartSearchInput" placeholder="e.g. nginx, bitnami/redis, prometheus..."
+                    style="flex:1; padding:10px 14px; border-radius:8px; border:1px solid var(--border); font-size:0.88rem;"
+                    onkeydown="if(event.key==='Enter') executeChartSearch()">
+                <button onclick="executeChartSearch()" class="btn-action">
+                    <i class="fas fa-search"></i> Search
+                </button>
+            </div>
+
+            <div id="chartSearchResults"></div>
+        </div>`;
+}
+
+async function executeChartSearch() {
+    const q = document.getElementById('chartSearchInput')?.value?.trim();
+    if (!q) return;
+
+    const resultsDiv = document.getElementById('chartSearchResults');
+    resultsDiv.innerHTML = _helmSpinner();
+
+    try {
+        const result = await apiCall(`/helm/charts/search?q=${encodeURIComponent(q)}`);
+        const charts = result.data || [];
+
+        if (charts.length === 0) {
+            resultsDiv.innerHTML = _helmEmpty(`No charts found for "${q}". Try adding the repository first.`);
+            return;
+        }
+
+        let html = `
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 25%;">Chart</th>
+                        <th style="width: 10%;">Version</th>
+                        <th style="width: 10%;">App</th>
+                        <th style="width: 40%;">Description</th>
+                        <th style="width: 15%; text-align:right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        charts.forEach(c => {
+            const safeName = encodeURIComponent(c.name);
+            const safeVer  = encodeURIComponent(c.version || "");
+            
+            // Tronchiamo il nome se è un URL lunghissimo per non rompere il layout
+            const displayName = c.name.length > 40 ? c.name.substring(0, 37) + '...' : c.name;
+
+            html += `
+                <tr>
+                    <td title="${c.name}"><b>${displayName}</b></td>
+                    <td><code style="font-size:0.75rem">${c.version || "—"}</code></td>
+                    <td><span style="font-size:0.75rem">${c.app_version || "—"}</span></td>
+                    <td title="${c.description}" style="font-size:0.8rem; color:#475569;">
+                        ${c.description || "—"}
+                    </td>
+                    <td style="text-align:right; white-space:nowrap;">
+                        <button onclick="showInstallForm('${c.name}', '${c.version || ''}')" 
+                                class="btn-small table-btn">
+                            <i class="fas fa-rocket"></i>
+                        </button>
+                        <button onclick="previewChartValues('${safeName}', '${safeVer}')" 
+                                class="btn-small table-btn">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </td>
+                </tr>`;
+        });
+
+
+        resultsDiv.innerHTML = html + '</tbody></table>';
+
+    } catch (err) {
+        if (err.message === "RESTRICTED") renderRestrictedAccess();
+        else resultsDiv.innerHTML = `<p style="color:#ef4444; font-size:0.85rem;">Error: ${err.message}</p>`;
+    }
+}
+
+async function previewChartValues(chartRefEncoded, versionEncoded) {
+    const chartRef = decodeURIComponent(chartRefEncoded);
+    const version  = decodeURIComponent(versionEncoded);
+
+    const existing = document.getElementById('chart-values-preview');
+    if (existing) existing.remove();
+
+    const resultsDiv = document.getElementById('chartSearchResults');
+    resultsDiv.insertAdjacentHTML('beforeend', `
+        <div id="chart-values-preview" style="margin-top:20px; padding:16px; background:#f8fafc;
+             border-radius:10px; border:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <b style="font-size:0.9rem;">Default Values: ${chartRef}</b>
+                <button onclick="document.getElementById('chart-values-preview').remove()"
+                        style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem;">&times;</button>
+            </div>
+            <div id="chart-values-content">${_helmSpinner()}</div>
+        </div>`);
+
+    try {
+        const qs = version ? `?chart_ref=${encodeURIComponent(chartRef)}&version=${encodeURIComponent(version)}` : `?chart_ref=${encodeURIComponent(chartRef)}`;
+        const result = await apiCall(`/helm/charts/values${qs}`);
+
+        document.getElementById('chart-values-content').innerHTML = `
+            <pre style="font-size:0.75rem; background:#1e293b; color:#e2e8f0; border-radius:8px;
+                        padding:14px; overflow-x:auto; max-height:300px; white-space:pre-wrap; margin:0;">${result.stdout || "(empty)"}</pre>`;
+
+    } catch (err) {
+        document.getElementById('chart-values-content').innerHTML =
+            `<p style="color:#ef4444; font-size:0.85rem;">Error: ${err.message}</p>`;
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// CATALOG — install form (inline sotto la search)
+// ---------------------------------------------------------------------------
+
+function showInstallForm(chartRef, version) {
+    const existing = document.getElementById('install-form-panel');
+    if (existing) existing.remove();
+
+    const resultsDiv = document.getElementById('chartSearchResults');
+    resultsDiv.insertAdjacentHTML('beforeend', `
+        <div id="install-form-panel" style="margin-top:20px; padding:20px; background:#f8fafc;
+             border-radius:10px; border:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <b style="font-size:0.95rem;"><i class="fas fa-rocket" style="color:var(--accent); margin-right:8px;"></i>Deploy: ${chartRef}</b>
+                <button onclick="document.getElementById('install-form-panel').remove()"
+                        style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem;">&times;</button>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+                <div>
+                    <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:5px;">Release Name *</label>
+                    <input type="text" id="inst_release_name" placeholder="my-release"
+                        style="width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:5px;">Namespace</label>
+                    <input type="text" id="inst_namespace" value="${window.currentNamespace}"
+                        style="width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:5px;">Version</label>
+                    <input type="text" id="inst_version" value="${version}" placeholder="latest"
+                        style="width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem; box-sizing:border-box;">
+                </div>
+                <div style="display:flex; align-items:end; gap:20px; padding-bottom:2px;">
+                    <label style="display:flex; align-items:center; gap:7px; font-size:0.82rem; cursor:pointer;">
+                        <input type="checkbox" id="inst_atomic" style="width:15px; height:15px;">
+                        Atomic (auto-rollback)
+                    </label>
+                    <label style="display:flex; align-items:center; gap:7px; font-size:0.82rem; cursor:pointer;">
+                        <input type="checkbox" id="inst_wait" style="width:15px; height:15px;">
+                        Wait for ready
+                    </label>
+                </div>
+            </div>
+
+            <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:5px;">
+                Values Override (JSON)
+                <span style="font-weight:400; font-size:0.7rem; text-transform:none; margin-left:8px; color:#94a3b8">optional — override chart defaults</span>
+            </label>
+            <textarea id="inst_values" rows="5" placeholder='{ "replicaCount": 2, "image": { "tag": "latest" } }'
+                style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border);
+                       font-family:monospace; font-size:0.8rem; box-sizing:border-box;"></textarea>
+
+            <div style="display:flex; gap:10px; margin-top:14px;">
+                <button onclick="executeInstall('${chartRef}')" class="btn-action" style="flex:1;">
+                    <i class="fas fa-paper-plane"></i> Deploy Chart
+                </button>
+            </div>
+            <div id="install-result"></div>
+        </div>`);
+}
+
+async function executeInstall(chartRef) {
+    const releaseName = document.getElementById('inst_release_name')?.value?.trim();
+    const namespace   = document.getElementById('inst_namespace')?.value?.trim() || window.currentNamespace;
+    const version     = document.getElementById('inst_version')?.value?.trim() || null;
+    const atomic      = document.getElementById('inst_atomic')?.checked;
+    const wait        = document.getElementById('inst_wait')?.checked;
+    const valuesRaw   = document.getElementById('inst_values')?.value?.trim();
+
+    if (!releaseName) { alert("Release name is required."); return; }
+
+    let values = null;
+    if (valuesRaw) {
+        try { values = JSON.parse(valuesRaw); }
+        catch { alert("Invalid JSON in Values Override field."); return; }
+    }
+
+    const btn = document.querySelector('#install-form-panel .btn-action');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deploying...';
+
+    try {
+        const params = { chart_ref: chartRef, create_namespace: true, atomic, wait };
+        if (version) params.version = version;
+
+        const result = await _helmPost(
+            `/helm/namespaces/${namespace}/releases/${releaseName}`,
+            params,
+            values
+        );
+
+        document.getElementById('install-result').innerHTML =
+            _renderResultBox(result, `Release "${releaseName}" deployed successfully.`);
+
+        if (result.success) setTimeout(() => loadReleases(), 2000);
+
+    } catch (err) {
+        document.getElementById('install-result').innerHTML =
+            _renderResultBox({ success: false, stderr: err.message });
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Deploy Chart';
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// DEPLOY FROM ZIP
+// ---------------------------------------------------------------------------
+
+function showZipUpload() {
+    window.currentView = 'zip';
+    const resArea = document.getElementById('resultArea');
+    document.getElementById('controlsContainer').style.display = 'none';
+
+    resArea.innerHTML = `
+        <div class="deploy-container">
+            <h2>Deploy from ZIP</h2>
+            <div class="info-note" style="background:rgba(var(--accent-rgb),0.08); border-left:4px solid var(--accent);
+                 padding:12px 14px; border-radius:6px; margin-bottom:20px; font-size:0.85rem; line-height:1.5; color:var(--text-secondary);">
+                <i class="fas fa-info-circle" style="color:var(--accent); margin-right:8px;"></i>
+                Upload a ZIP archive containing a Helm chart directory (must include <code>Chart.yaml</code>).
+                Helm will run <code>upgrade --install</code> on the extracted chart.
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;">
+                <div>
+                    <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:5px;">Release Name *</label>
+                    <input type="text" id="zip_release_name" placeholder="my-release"
+                        style="width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:5px;">Namespace</label>
+                    <input type="text" id="zip_namespace" value="${window.currentNamespace}"
+                        style="width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem; box-sizing:border-box;">
+                </div>
+            </div>
+
+            <div class="upload-zone" style="border:2px dashed var(--border); padding:28px; border-radius:12px; text-align:center; margin-bottom:16px; cursor:pointer;"
+                 onclick="document.getElementById('zipFileInput').click()">
+                <i class="fas fa-file-archive fa-2x" style="color:var(--accent); margin-bottom:10px;"></i><br>
+                <span style="font-size:0.88rem; color:var(--text-secondary)">Click to select ZIP file</span>
+                <input type="file" id="zipFileInput" accept=".zip" style="display:none" onchange="handleZipSelection(event)">
+                <div id="zipFileDisplay" style="margin-top:10px; font-size:0.75rem; color:var(--text-muted)">No file selected</div>
+            </div>
+
+            <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:5px;">
+                Values Override (JSON)
+                <span style="font-weight:400; font-size:0.7rem; text-transform:none; margin-left:8px; color:#94a3b8">optional</span>
+            </label>
+            <textarea id="zip_values" rows="4" placeholder='{ "replicaCount": 1 }'
+                style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border);
+                       font-family:monospace; font-size:0.8rem; box-sizing:border-box; margin-bottom:14px;"></textarea>
+            
+            <button onclick="lintZipChart()" class="btn-action" id="btnLintZip" style="background:#fff; color:var(--accent); border:1px solid var(--accent);">
+                <i class="fas fa-stethoscope"></i> Lint
+            </button>
+
+            <button onclick="executeZipDeploy()" class="btn-action" style="width:50%;" id="zipDeployBtn">
+                <i class="fas fa-upload"></i> Upload & Deploy
+            </button>
+            <div id="zip-result" style="margin-top:14px;"></div>
+        </div>`;
+}
+
+function handleZipSelection(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    document.getElementById('zipFileDisplay').textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+}
+
+async function executeZipDeploy() {
+    const releaseName = document.getElementById('zip_release_name')?.value?.trim();
+    const namespace   = document.getElementById('zip_namespace')?.value?.trim() || window.currentNamespace;
+    const fileInput   = document.getElementById('zipFileInput');
+    const valuesRaw   = document.getElementById('zip_values')?.value?.trim();
+    const resultDiv   = document.getElementById('zip-result');
+
+    if (!releaseName) { alert("Release name is required."); return; }
+    if (!fileInput.files[0]) { alert("Please select a ZIP file."); return; }
+
+    let valuesJson = null;
+    if (valuesRaw) {
+        try { JSON.parse(valuesRaw); valuesJson = valuesRaw; }
+        catch { alert("Invalid JSON in Values Override field."); return; }
+    }
+
+    const btn = document.getElementById('zipDeployBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading & Deploying...';
+    resultDiv.innerHTML = '';
+
+    try {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        const qs = new URLSearchParams({ release_name: releaseName });
+        if (valuesJson) qs.set('values_json', valuesJson);
+
+        const url = `/helm/namespaces/${namespace}/releases/${releaseName}/from-zip?${qs}`;
+        const result = await apiCall(url, 'POST', false, formData);
+
+        resultDiv.innerHTML = _renderResultBox(result, `Chart deployed as "${releaseName}" in namespace "${namespace}".`);
+        if (result.success) setTimeout(() => loadReleases(), 2000);
+
+    } catch (err) {
+        resultDiv.innerHTML = _renderResultBox({ success: false, stderr: err.message });
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-upload"></i> Upload & Deploy';
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// REPOSITORIES
+// ---------------------------------------------------------------------------
+
+async function loadRepositories() {
+    window.currentView = 'repos';
+    const resArea = document.getElementById('resultArea');
+    document.getElementById('controlsContainer').style.display = 'none';
+    resArea.innerHTML = _helmSpinner();
+
+    try {
+        const result = await apiCall('/helm/repos');
+        const repos = result.data || [];
+
+        let html = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h2 style="margin:0;">Helm Repositories</h2>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="updateRepos()" class="btn-action" id="btnUpdateRepos" title="helm repo update">
+                        <i class="fas fa-sync"></i> Update All
+                    </button>
+                    <button onclick="showAddRepoForm()" class="btn-action">
+                        <i class="fas fa-plus"></i> Add Repository
+                    </button>
+                </div>
+            </div>
+            <div id="repo-action-result"></div>`;
+
+        if (repos.length === 0) {
+            html += _helmEmpty("No repositories configured. Add a repository to start searching and deploying charts.");
+        } else {
+            html += `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>URL</th>
+                            <th style="text-align:right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+            repos.forEach(r => {
+                html += `
+                    <tr>
+                        <td><b>${r.name}</b></td>
+                        <td><code style="font-size:0.78rem; word-break:break-all;">${r.url}</code></td>
+                        <td style="text-align:right; white-space:nowrap;">
+                            <button onclick="searchInRepo('${r.name}')" class="btn-small table-btn" title="Search charts in this repo">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+            });
+
+            html += '</tbody></table>';
+        }
+
+        html += '<div id="add-repo-panel"></div>';
+        resArea.innerHTML = html;
+
+    } catch (err) {
+        if (err.message === "RESTRICTED") renderRestrictedAccess();
+        else showError(err.message);
+    }
+}
+
+function showAddRepoForm() {
+    const panel = document.getElementById('add-repo-panel');
+    if (!panel) return;
+
+    panel.innerHTML = `
+        <div style="margin-top:20px; padding:20px; background:#f8fafc; border-radius:10px; border:1px solid var(--border);">
+            <b style="font-size:0.95rem; display:block; margin-bottom:14px;">
+                <i class="fas fa-plus" style="color:var(--accent); margin-right:8px;"></i>Add Repository
+            </b>
+            <div style="display:grid; grid-template-columns:1fr 2fr; gap:12px; margin-bottom:14px;">
+                <div>
+                    <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:5px;">Name *</label>
+                    <input type="text" id="repo_name" placeholder="bitnami"
+                        style="width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:5px;">URL *</label>
+                    <input type="text" id="repo_url" placeholder="https://charts.bitnami.com/bitnami"
+                        style="width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem; box-sizing:border-box;">
+                </div>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button onclick="submitAddRepo()" class="btn-action">
+                    <i class="fas fa-save"></i> Save Repository
+                </button>
+                <button onclick="document.getElementById('add-repo-panel').innerHTML=''"
+                        class="btn-action" style="background:var(--bg-light); color:var(--text-primary);">
+                    Cancel
+                </button>
+            </div>
+            <div id="add-repo-result" style="margin-top:12px;"></div>
+        </div>`;
+
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function submitAddRepo() {
+    const name = document.getElementById('repo_name')?.value?.trim();
+    const url  = document.getElementById('repo_url')?.value?.trim();
+    if (!name || !url) { alert("Both name and URL are required."); return; }
+
+    const resultDiv = document.getElementById('add-repo-result');
+    resultDiv.innerHTML = _helmSpinner();
+
+    try {
+        const result = await _helmPost('/helm/repos', { name, url });
+        resultDiv.innerHTML = _renderResultBox(result, `Repository "${name}" added successfully.`);
+        if (result.success) {
+            setTimeout(() => loadRepositories(), 1500);
+        }
+    } catch (err) {
+        resultDiv.innerHTML = _renderResultBox({ success: false, stderr: err.message });
+    }
+}
+
+async function updateRepos() {
+    const btn = document.getElementById('btnUpdateRepos');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...'; }
+
+    try {
+        const result = await _helmPost('/helm/repos/update');
+        const resultDiv = document.getElementById('repo-action-result');
+        if (resultDiv) resultDiv.innerHTML = _renderResultBox(result, "All repositories updated successfully.");
+    } catch (err) {
+        showError(err.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync"></i> Update All'; }
+    }
+}
+
+function searchInRepo(repoName) {
+    // Porta sulla sezione search con prefill del nome repo
+    document.getElementById('menu-search')?.click();
+    setTimeout(() => {
+        const input = document.getElementById('chartSearchInput');
+        if (input) { input.value = repoName + '/'; input.focus(); }
+    }, 100);
+}
+
+
+// ---------------------------------------------------------------------------
+// LINT — da chart ref (usato nella search)
+// ---------------------------------------------------------------------------
+
+async function lintChart(chartRef, version) {
+    const existing = document.getElementById('lint-result-panel');
+    if (existing) existing.remove();
+
+    const resultsDiv = document.getElementById('chartSearchResults');
+    resultsDiv.insertAdjacentHTML('beforeend', `
+        <div id="lint-result-panel" style="margin-top:16px; padding:16px; background:#f8fafc;
+             border-radius:10px; border:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <b style="font-size:0.9rem;"><i class="fas fa-stethoscope" style="color:var(--accent); margin-right:8px;"></i>Lint: ${chartRef}</b>
+                <button onclick="document.getElementById('lint-result-panel').remove()"
+                        style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem;">&times;</button>
+            </div>
+            <div id="lint-result-content">${_helmSpinner()}</div>
+        </div>`);
+
+    try {
+        const qs = version ? `?chart_ref=${encodeURIComponent(chartRef)}&strict=false&version=${encodeURIComponent(version)}` 
+                           : `?chart_ref=${encodeURIComponent(chartRef)}&strict=false`;
+        const result = await apiCall(`/helm/charts/lint${qs}`);
+        document.getElementById('lint-result-content').innerHTML = _renderLintResult(result);
+    } catch (err) {
+        document.getElementById('lint-result-content').innerHTML =
+            `<p style="color:#ef4444; font-size:0.85rem;">Error: ${err.message}</p>`;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// LINT — da ZIP (aggiunto al form showZipUpload)
+// ---------------------------------------------------------------------------
+
+async function lintZipChart() {
+    const fileInput = document.getElementById('zipFileInput');
+    const resultDiv = document.getElementById('zip-result');
+
+    if (!fileInput?.files[0]) { alert("Select a ZIP file first."); return; }
+
+    const btn = document.getElementById('btnLintZip');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Linting...'; }
+    resultDiv.innerHTML = '';
+
+    try {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        const result = await apiCall('/helm/charts/lint-zip?strict=false', 'POST', false, formData);
+        resultDiv.innerHTML = _renderLintResult(result);
+    } catch (err) {
+        resultDiv.innerHTML = _renderResultBox({ success: false, stderr: err.message });
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-stethoscope"></i> Lint'; }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// LINT — renderer condiviso
+// ---------------------------------------------------------------------------
+
+function _renderLintResult(result) {
+    const hasErrors   = result.has_errors;
+    const hasWarnings = result.has_warnings;
+    const output      = result.stdout || result.stderr || "(no output)";
+
+    const color  = hasErrors ? "#ef4444" : hasWarnings ? "#f59e0b" : "#10b981";
+    const icon   = hasErrors ? "fa-times-circle" : hasWarnings ? "fa-exclamation-triangle" : "fa-check-circle";
+    const label  = hasErrors ? "Lint failed — errors found"
+                 : hasWarnings ? "Lint passed with warnings"
+                 : "Lint passed — no issues found";
+
+    return `
+        <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px;">
+            <i class="fas ${icon}" style="color:${color}; font-size:1.1rem;"></i>
+            <span style="font-size:0.88rem; font-weight:600; color:${color};">${label}</span>
+        </div>
+        <pre style="margin:0; font-size:0.75rem; background:#1e293b; color:#e2e8f0;
+                    border-radius:8px; padding:14px; overflow-x:auto;
+                    max-height:260px; white-space:pre-wrap;">${output}</pre>`;
+}
