@@ -792,3 +792,64 @@ button[onclick*="deleteDeploy"]:hover { background: #ef4444; color: #fff; border
     60%       { transform: translateX(-3px); }
     80%       { transform: translateX(3px); }
 }
+
+/* Container principale del tasto Helm */
+.helm-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin-left: 5px; /* Spazio dai badge */
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+/* Cerchio con l'icona */
+.helm-icon-wrapper {
+    width: 38px;
+    height: 38px;
+    background: #0f1689; /* Blu Helm */
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    box-shadow: 0 2px 8px rgba(15, 22, 137, 0.25);
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.helm-icon-wrapper i {
+    font-size: 1.2rem;
+}
+
+
+/* Effetti Hover */
+.helm-nav-item:hover .helm-icon-wrapper {
+    transform: scale(1.1) rotate(45deg);
+    background: #1a24b1;
+    box-shadow: 0 4px 15px rgba(15, 22, 137, 0.4);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.helm-nav-item:hover .helm-label {
+    opacity: 1;
+    transform: translateY(1px);
+}
+
+/* Effetto Active (click) */
+.helm-nav-item:active .helm-icon-wrapper {
+    transform: scale(0.95);
+}
+
+/* Impedisce alla tabella di uscire dallo sfondo */
+.data-table {
+    width: 100%;
+}
+
+.data-table td {
+    overflow: hidden;
+    text-overflow: ellipsis; /* Aggiunge i "..." */
+}
+
