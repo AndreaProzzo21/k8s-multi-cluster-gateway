@@ -32,7 +32,6 @@ response.items.forEach(ns => {
 const selected = ns.name === window.currentNamespace ? 'selected' : '';
 html += `<option value="${ns.name}" ${selected}>${ns.name}</option>`;
 });
-html += `</select><button onclick="addNewNamespace()" class="btn-small plus-btn"><i class="fas fa-plus"></i></button>`;
 container.innerHTML = html;
 } else {
 // Se l'API risponde ma dice che non può listare
@@ -275,6 +274,97 @@ async function loadNodes() {
 
     } catch (err) {
         showError("Errore critico durante il caricamento dei nodi: " + err.message);
+    }
+}
+
+async function loadNamespace() {
+    currentView = 'namespaces';
+    const resArea = document.getElementById('resultArea');
+    
+    // Nascondiamo i controlli superiori se presenti, per evitare confusione
+    const controls = document.getElementById('controlsContainer');
+    if (controls) controls.style.display = 'none';
+
+    resArea.innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+    try {
+        const response = await apiCall('/namespaces');
+        
+        // Verifichiamo se l'utente ha i permessi per listare (can_list)
+        if (!response || !response.can_list) {
+            renderRestrictedAccess();
+            return;
+        }
+
+        const data = response.items || [];
+
+        let html = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:2px solid var(--border); padding-bottom:15px;">
+                <div>
+                    <h2 style="margin:0; color:var(--text-main);">Cluster Namespaces</h2>
+                    <p style="margin:5px 0 0; font-size:0.85rem; color:var(--text-muted);">
+                        Virtual clusters used to isolate groups of resources.
+                    </p>
+                </div>
+                <button onclick="addNewNamespace()" class="btn-action" style="display:flex; align-items:center; gap:8px;">
+                    <i class="fas fa-plus-circle"></i> Create Namespace
+                </button>
+            </div>
+            
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Namespace Name</th>
+                        <th>Status</th>
+                        <th>Creation Date</th>
+                        <th style="text-align:right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        data.forEach(ns => {
+            const isActive = ns.status === 'Active';
+            const statusClass = isActive ? 'status-running' : 'status-pending';
+            
+            html += `
+                <tr>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <i class="fas fa-box" style="color:var(--accent); font-size:0.9rem;"></i>
+                            <b style="font-size:0.95rem;">${ns.name}</b>
+                            ${ns.name === 'default' ? '<small style="color:var(--text-muted); font-style:italic;">(system default)</small>' : ''}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge ${statusClass}">${ns.status}</span>
+                    </td>
+                    <td>
+                        <small style="color:var(--text-muted)">
+                            <i class="far fa-calendar-alt" style="margin-right:5px;"></i>
+                            ${ns.creation_timestamp ? new Date(ns.creation_timestamp).toLocaleString() : 'N/A'}
+                        </small>
+                    </td>
+                    <td style="text-align:right">
+                        <button onclick="deleteNamespace('${ns.name}')" 
+                                class="btn-small delete-btn" 
+                                title="Delete Namespace"
+                                ${ns.name === 'default' || ns.name === 'kube-system' || ns.name === 'kube-node-lease' || ns.name === 'kube-flannel' || ns.name === 'kube-public' ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''}>
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
+        });
+
+        resArea.innerHTML = data.length > 0 
+            ? html + '</tbody></table>' 
+            : `<div style="text-align:center; padding:40px; color:var(--text-muted);">No namespaces found.</div>`;
+
+    } catch (err) {
+        if (err.message === "RESTRICTED") {
+            renderRestrictedAccess();
+        } else {
+            showError("Failed to load namespaces: " + err.message);
+        }
     }
 }
 

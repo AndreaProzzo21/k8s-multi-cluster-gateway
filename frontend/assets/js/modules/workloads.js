@@ -280,3 +280,39 @@ async function deleteResource(type, name) {
         }
     }
 }
+
+async function deleteNamespace(name) {
+    // 1. Protezione per i namespace di sistema
+    const protectedNamespaces = ['default', 'kube-system', 'kube-public', 'kube-node-lease', 'kube-flannel'];
+    if (protectedNamespaces.includes(name)) {
+        alert(`Errore: Il namespace '${name}' è una risorsa di sistema e non può essere eliminato dal Gateway.`);
+        return;
+    }
+
+    // 2. Doppia conferma (l'eliminazione di un NS cancella TUTTO ciò che contiene)
+    const confirmFirst = confirm(`Attenzione! L'eliminazione del namespace '${name}' cancellerà permanentemente tutti i Pod, Service e risorse contenuti in esso. Confermi?`);
+    if (!confirmFirst) return;
+
+    const confirmSecond = prompt(`Per confermare l'eliminazione definitiva, scrivi il nome del namespace (${name}):`);
+    if (confirmSecond !== name) {
+        alert("Nome non corrispondente. Operazione annullata.");
+        return;
+    }
+
+    try {
+        // L'URL corretto per un namespace è globale: /namespaces/{name}
+        await apiCall(`/namespaces/${name}`, 'DELETE');
+        
+        alert(`Il processo di eliminazione per '${name}' è iniziato. Potrebbe apparire come 'Terminating' per qualche istante.`);
+        
+        // Ricarichiamo la lista dei namespace
+        await loadNamespace();
+        
+    } catch (err) {
+        if (err.message === "RESTRICTED") {
+            alert(`Errore: Accesso negato (403). Non hai i permessi per eliminare namespace.`);
+        } else {
+            alert(`Errore durante l'eliminazione di ${name}: ${err.message}`);
+        }
+    }
+}
