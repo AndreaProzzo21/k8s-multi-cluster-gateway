@@ -10,7 +10,7 @@ from app.core.exceptions import K8sBaseException
 from app.api.routes.k8s_routes import router as k8s_router
 from app.api.routes.helm_routes import router as helm_router
 from app.api.auth.auth_route import auth_router
-from app.api.auth.admin_route import admin_router
+from app.api.routes.admin_routes import admin_router
 from app.infrastructure.database import init_db
 
 # Configurazione Logging
