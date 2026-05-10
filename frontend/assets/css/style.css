@@ -853,3 +853,55 @@ button[onclick*="deleteDeploy"]:hover { background: #ef4444; color: #fff; border
     text-overflow: ellipsis; /* Aggiunge i "..." */
 }
 
+.apply-result-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.apply-box {
+    border-radius: 10px;
+    padding: 15px;
+    border: 1px solid var(--border);
+    font-size: 0.9rem;
+}
+
+.apply-box.success {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+    color: #166534;
+}
+
+.apply-box.danger {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+}
+
+.apply-box-header {
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Evita che l'errore lungo spacchi tutto */
+.apply-error-scroll {
+    max-height: 200px;
+    overflow-y: auto;
+    background: rgba(0,0,0,0.05);
+    padding: 10px;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 0.8rem;
+    white-space: pre-wrap; /* Mantiene a capo i messaggi lunghi */
+}
+
+.apply-box ul {
+    margin: 0;
+    padding-left: 20px;
+}

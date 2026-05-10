@@ -62,6 +62,9 @@
                 <li id="menu-upload" onclick="setActive(this); showApplyForm()">
                     <i class="fas fa-file-import"></i> Cluster Apply
                 </li>
+                <li id="menu-sts" onclick="setActive(this); loadStatefulSets()">
+                    <i class="fas fa-list-ol"></i> Stateful Sets
+                </li>
             </ul>
 
             <div class="sidebar-section">Network & Config</div>
@@ -91,6 +94,19 @@
                 </li>
                 <li id="menu-bindings" onclick="setActive(this); loadRoleBindings()">
                     <i class="fas fa-link"></i> Role Bindings
+                </li>
+            </ul>
+
+            <div class="sidebar-section">Storage</div>
+            <ul>
+                <li id="menu-pv" onclick="setActive(this); loadPV()">
+                    <i class="fas fa-database"></i> Cluster Volumes (PV)
+                </li>
+                <li id="menu-pvc" onclick="setActive(this); loadPVC()">
+                    <i class="fas fa-file-contract"></i> Namespace Claims (PVC)
+                </li>
+                <li id="menu-sc" onclick="setActive(this); loadStorageClasses()">
+                    <i class="fas fa-hard-drive"></i> Storage Classes
                 </li>
             </ul>
         </aside>
@@ -158,6 +174,10 @@
             roles:           loadRoles,
             rolebindings:    loadRoleBindings,
             ingress:         loadIngress,
+            pvc:             loadPVC,
+            pv:              loadPV,
+            statefulsets:    loadStatefulSets,
+            storageclasses:  loadStorageClasses
         };
         const fn = viewMap[window.currentView];
         if (fn) fn();

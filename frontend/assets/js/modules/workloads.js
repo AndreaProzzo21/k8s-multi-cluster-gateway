@@ -157,7 +157,7 @@ async function viewLogs(name, btn) {
                 </td>
             </tr>`);
 
-        const logs = await apiCall(`/namespaces/${window.currentNamespace}/pods/${name}/logs?tail=100`, 'GET', true);
+        const logs = await apiCall(`/namespaces/${window.currentNamespace}/pods/${name}/logs?tail=50`, 'GET', true);
         document.getElementById(`pre-${name}`).textContent = logs || "No logs available.";
         
     } catch (err) {
@@ -175,17 +175,74 @@ async function downloadLogs(name) {
     document.body.appendChild(a); a.click(); a.remove();
 }
 
+function _renderApplyReport(res) {
+    const details = res.details || [];
+    // Dividiamo i messaggi in base al contenuto (semplice euristica)
+    const errors = details.filter(d => d.toLowerCase().includes('error') || d.toLowerCase().includes('failed'));
+    const success = details.filter(d => !errors.includes(d));
+
+    let html = `<div class="apply-result-container">`;
+
+    // Sezione Successi
+    if (success.length > 0) {
+        html += `
+            <div class="apply-box success">
+                <div class="apply-box-header"><i class="fas fa-check-circle"></i> Resources Applied</div>
+                <ul>${success.map(s => `<li>${s}</li>`).join('')}</ul>
+            </div>`;
+    }
+
+    // Sezione Errori
+    if (errors.length > 0) {
+        html += `
+            <div class="apply-box danger">
+                <div class="apply-box-header"><i class="fas fa-exclamation-triangle"></i> Deployment Errors</div>
+                <div class="apply-error-scroll">
+                    <ul>${errors.map(e => `<li><code>${e}</code></li>`).join('')}</ul>
+                </div>
+            </div>`;
+    }
+
+    html += `</div>`;
+    return html;
+}
+
 async function executeApply() {
     const yamlContent = document.getElementById('yamlEditor').value;
-    if(!yamlContent.trim()) return;
+    if (!yamlContent.trim()) return;
+
     const reportDiv = document.getElementById('applyReport');
-    reportDiv.innerHTML = "Processing...";
+    const btn = document.querySelector('.btn-apply-main'); // Assicurati di avere una classe sul tasto
+    
+    // UI Feedback iniziale
+    reportDiv.innerHTML = `
+        <div style="text-align:center; padding:20px;">
+            <i class="fas fa-spinner fa-spin"></i> Communicating with Kubernetes API...
+        </div>`;
+    if(btn) btn.disabled = true;
+
     try {
         const formData = new FormData();
         formData.append('file', new Blob([yamlContent], { type: 'text/yaml' }), 'resource.yaml');
+        
         const res = await apiCall(`/apply`, 'POST', false, formData);
-        reportDiv.innerHTML = `<div style="background:var(--accent-soft); padding:15px; border-radius:10px;"><b>Progress...</b><ul>${res.details.map(d => `<li>${d}</li>`).join('')}</ul></div>`;
-    } catch (err) { showError(err.message);}
+
+        // Usiamo l'helper per renderizzare il risultato
+        reportDiv.innerHTML = _renderApplyReport(res);
+
+    } catch (err) {
+        // Gestione errore catastrofico (es. rete o 500)
+        reportDiv.innerHTML = `
+            <div class="apply-box danger">
+                <div class="apply-box-header">Critical System Error</div>
+                <p>${err.message}</p>
+            </div>`;
+    } finally {
+        if(btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-magic"></i> Apply Manifest';
+        }
+    }
 }
 
 async function loadEvents() {
@@ -316,3 +373,70 @@ async function deleteNamespace(name) {
         }
     }
 }
+
+async function loadStatefulSets() {
+    currentView = 'statefulsets';
+    const ns = window.currentNamespace;
+    const resArea = document.getElementById('resultArea');
+    
+    // Assicuriamoci che i controlli siano visibili
+    document.getElementById('controlsContainer').style.display = 'flex';
+
+    const labelSelector = document.getElementById('labelFilter')?.value || '';
+    let url = `/namespaces/${ns}/statefulsets`;
+    if (labelSelector) url += `?label_selector=${encodeURIComponent(labelSelector)}`;
+
+    resArea.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+    try {
+        const data = await apiCall(url);
+        let html = `
+            <h2>StatefulSets [${ns}]</h2>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Service</th>
+                        <th>Replicas</th>
+                        <th>Age</th>
+                        <th style="text-align:right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        if (!data || data.length === 0) {
+            html += `<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-muted);">No StatefulSet found in namespace ${ns}.</td></tr>`;
+        } else {
+            data.forEach(s => {
+                const isReady = s.replicas_ready === s.replicas_desired;
+                const badgeClass = isReady ? 'status-running' : 'status-pending';
+                
+                html += `
+                    <tr>
+                        <td><b>${s.name}</b></td>
+                        <td><code style="font-size:0.8rem">${s.service_name || '-'}</code></td>
+                        <td><b>${s.replicas_ready}</b>/${s.replicas_desired}</td>
+                        <td><small>${new Date(s.creation_timestamp).toLocaleDateString()}</small></td>
+                        <td style="text-align:right">
+                            <button onclick="if(confirm('Eliminare lo StatefulSet ${s.name}?')) deleteResource('statefulsets', '${s.name}')" 
+                                    class="btn-small delete-btn" title="Delete StatefulSet">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+            });
+        }
+        
+        resArea.innerHTML = html + '</tbody></table>';
+        
+    } catch (err) { 
+        if (err.message === "RESTRICTED") {
+            renderRestrictedAccess(); 
+        } else {
+            showError(err.message);
+        }
+    }
+}
+
+
+

@@ -368,3 +368,175 @@ async function loadNamespace() {
     }
 }
 
+async function loadPV() {
+    currentView = 'pv';
+    const resArea = document.getElementById('resultArea');
+    
+    // Nascondiamo la barra dei namespace perché i PV sono globali
+    const controls = document.getElementById('controlsContainer');
+    if (controls) controls.style.display = 'none';
+
+    resArea.innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+    try {
+        const data = await apiCall('/cluster/volumes');
+        let html = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2 style="margin:0;">Persistent Volumes (Global)</h2>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Capacity</th>
+                        <th>Status</th>
+                        <th>Claim (NS/Name)</th>
+                        <th>Storage Class</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        data.forEach(pv => {
+            const statusClass = pv.status === 'Bound' ? 'status-running' : 'status-pending';
+            html += `
+                <tr>
+                    <td><b>${pv.name}</b></td>
+                    <td><code style="background:#f1f5f9; padding:2px 5px; border-radius:4px;">${pv.capacity}</code></td>
+                    <td><span class="badge ${statusClass}">${pv.status}</span></td>
+                    <td><small style="color:var(--text-muted)">${pv.claim}</small></td>
+                    <td><small>${pv.storage_class || 'standard'}</small></td>
+                </tr>`;
+        });
+        resArea.innerHTML = data.length > 0 ? html + '</tbody></table>' : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Persistent Volumes found.</p>`;;
+    } catch (err) {
+        if (err.message === "RESTRICTED") {
+            renderRestrictedAccess();
+        } else {
+            showError("Failed to load PV: " + err.message);
+        }
+    }
+}
+
+async function loadPVC() {
+    currentView = 'pvc';
+    const ns = window.currentNamespace;
+    const resArea = document.getElementById('resultArea');
+    
+    // Riactiviamo i controlli perché qui il namespace conta
+    const controls = document.getElementById('controlsContainer');
+    if (controls) controls.style.display = 'flex';
+
+    resArea.innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+    try {
+        const data = await apiCall(`/namespaces/${ns}/pvc`);
+        let html = `<h2>Volume Claims [${ns}]</h2>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Volume</th>
+                                <th>Capacity</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+        data.forEach(pvc => {
+            const statusClass = pvc.status === 'Bound' ? 'status-running' : 'status-pending';
+            html += `
+                <tr>
+                    <td><b>${pvc.name}</b></td>
+                    <td><span class="badge ${statusClass}">${pvc.status}</span></td>
+                    <td><small style="font-family:monospace;">${pvc.volume || '-'}</small></td>
+                    <td>${pvc.capacity}</td>
+                    <td>
+                        <button onclick="deleteResource('pvc', '${pvc.name}')" class="btn-small delete-btn">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
+        });
+        resArea.innerHTML = data.length > 0 ? html + '</tbody></table>' : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No PVC found in namespace ${ns}.</p>`;;
+    } catch (err) {
+        if (err.message === "RESTRICTED") {
+            renderRestrictedAccess();
+        } else {
+            showError("Failed to load PVC: " + err.message);
+        }
+    }
+}
+
+async function loadStorageClasses() {
+    currentView = 'storageclasses';
+    const resArea = document.getElementById('resultArea');
+    
+    // Nascondiamo i controlli perché la risorsa è globale
+    document.getElementById('controlsContainer').style.display = 'none';
+
+    resArea.innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+    try {
+        const data = await apiCall('/cluster/storage-classes');
+        
+        let html = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h2 style="margin:0;">Storage Classes</h2>
+                <small style="color:var(--text-muted)">Global Cluster Resources</small>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Provisioner</th>
+                        <th>Reclaim Policy</th>
+                        <th>Binding Mode</th>
+                        <th>Creation Date</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        if (!data || data.length === 0) {
+            html += `<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-muted);">No Storage Classes defined in the cluster.</td></tr>`;
+        } else {
+            data.forEach(sc => {
+                html += `
+                    <tr>
+                        <td><b style="color:var(--accent)">${sc.name}</b></td>
+                        <td><code style="font-size:0.75rem">${sc.provisioner}</code></td>
+                        <td><span class="badge" style="background:#f1f5f9; color:#475569;">${sc.reclaim_policy}</span></td>
+                        <td><small>${sc.volume_binding_mode}</small></td>
+                        <td><small>${new Date(sc.age).toLocaleDateString()}</small></td>
+                        <td><button onclick="deleteStorageClass('${sc.name}')" class="btn-small delete-btn">
+                            <i class="fas fa-trash"></i>
+                        </button></td>
+                    </tr>`;
+                
+            });
+        }
+
+        resArea.innerHTML = html + '</tbody></table>';
+
+    } catch (err) {
+        if (err.message === "RESTRICTED") {
+            renderRestrictedAccess();
+        } else {
+            showError(err.message);
+        }
+    }
+}
+
+async function deleteStorageClass(name) {
+    if (!confirm(`ATTENZIONE: Eliminare la StorageClass '${name}'? Questo impedirà la creazione di nuovi volumi basati su questo profilo.`)) return;
+    
+    try {
+        await apiCall(`/cluster/storage-classes/${name}`, 'DELETE');
+        alert(`StorageClass '${name}' eliminata con successo.`);
+        loadStorageClasses(); // Ricarica la tabella
+    } catch (err) {
+        showError("Impossibile eliminare la StorageClass: " + err.message);
+    }
+}
+
