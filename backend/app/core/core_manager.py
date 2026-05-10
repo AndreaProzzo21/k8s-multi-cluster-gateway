@@ -24,6 +24,7 @@ class CoreManager:
         self.apps_v1 = k8s_apis["apps_v1"]
         self.rbac_v1 = k8s_apis["rbac_v1"]
         self.networking_v1 = k8s_apis["networking_v1"]
+        self.storage_v1 = k8s_apis["storage_v1"]
         self.api_client = self.core_v1.api_client
 
 
@@ -537,6 +538,115 @@ class CoreManager:
             }
         except Exception as e:
             self._handle_exception(e, f"Eliminazione Ingress '{name}'")
+
+# --- STORAGE ---
+
+    def list_persistent_volumes(self):
+        """Elenca i Persistent Volumes (PV) a livello di cluster."""
+        try:
+            pv_list = self.core_v1.list_persistent_volume()
+            return [
+                {
+                    "name": pv.metadata.name,
+                    "capacity": pv.spec.capacity.get("storage", "N/A"),
+                    "access_modes": pv.spec.access_modes,
+                    "reclaim_policy": pv.spec.persistent_volume_reclaim_policy,
+                    "status": pv.status.phase,
+                    "claim": f"{pv.spec.claim_ref.namespace}/{pv.spec.claim_ref.name}" if pv.spec.claim_ref else "None",
+                    "storage_class": pv.spec.storage_class_name,
+                    "creation_timestamp": pv.metadata.creation_timestamp.isoformat()
+                } for pv in pv_list.items
+            ]
+        except Exception as e:
+            self._handle_exception(e, "List Persistent Volumes")
+
+    def list_namespaced_pvc(self, namespace: str):
+        """Elenca i Persistent Volume Claims (PVC) in un namespace."""
+        try:
+            pvc_list = self.core_v1.list_namespaced_persistent_volume_claim(namespace=namespace)
+            return [
+                {
+                    "name": pvc.metadata.name,
+                    "status": pvc.status.phase,
+                    "volume": pvc.spec.volume_name,
+                    "capacity": pvc.status.capacity.get("storage", "N/A") if pvc.status.capacity else "N/A",
+                    "storage_class": pvc.spec.storage_class_name,
+                    "creation_timestamp": pvc.metadata.creation_timestamp.isoformat()
+                } for pvc in pvc_list.items
+            ]
+        except Exception as e:
+            self._handle_exception(e, f"List PVC in {namespace}")
+
+    def delete_namespaced_pvc(self, name: str, namespace: str):
+            """Elimina un Persistent Volume Claim (PVC) in un namespace specifico."""
+            try:
+                self.core_v1.delete_namespaced_persistent_volume_claim(
+                    name=name,
+                    namespace=namespace
+                )
+                return {
+                    "status": "success",
+                    "message": f"PVC '{name}' nel namespace '{namespace}' eliminato."
+                }
+            except Exception as e:
+                self._handle_exception(e, f"Eliminazione PVC '{name}' in {namespace}")
+
+
+# --- STORAGE CLASS (Cluster-wide) ---
+
+    def list_storage_classes(self):
+        try:
+            sc_list = self.storage_v1.list_storage_class()
+            return [{
+                "name": sc.metadata.name,
+                "provisioner": sc.provisioner,
+                "reclaim_policy": sc.reclaim_policy,
+                "volume_binding_mode": sc.volume_binding_mode,
+                "age": sc.metadata.creation_timestamp.isoformat()
+            } for sc in sc_list.items]
+        except Exception as e:
+            self._handle_exception(e, "List Storage Classes")
+
+    # --- STATEFUL SETS (Namespaced) ---
+    def list_namespaced_stateful_sets(self, namespace: str, label_selector: str = None):
+        try:
+            # Passa il label_selector alla chiamata ufficiale di K8s
+            sts_list = self.apps_v1.list_namespaced_stateful_set(
+                namespace, 
+                label_selector=label_selector
+            )
+            return [{
+                "name": sts.metadata.name,
+                "replicas_desired": sts.spec.replicas,
+                "replicas_ready": sts.status.ready_replicas or 0,
+                "service_name": sts.spec.service_name,
+                "creation_timestamp": sts.metadata.creation_timestamp.isoformat()
+            } for sts in sts_list.items]
+        except Exception as e:
+            self._handle_exception(e, f"List StatefulSets in {namespace}")
+    
+    # --- DELETE METHODS ---
+
+    def delete_namespaced_stateful_set(self, name: str, namespace: str):
+        """Elimina uno StatefulSet dal namespace."""
+        try:
+            # propagation_policy='Foreground' assicura che i Pod vengano eliminati insieme allo StatefulSet
+            self.apps_v1.delete_namespaced_stateful_set(
+                name=name, 
+                namespace=namespace,
+                propagation_policy='Foreground'
+            )
+            return {"status": "success", "message": f"StatefulSet '{name}' eliminato."}
+        except Exception as e:
+            self._handle_exception(e, f"Eliminazione StatefulSet '{name}'")
+
+    def delete_storage_class(self, name: str):
+        """Elimina una StorageClass dal cluster (globale)."""
+        try:
+            self.storage_v1.delete_storage_class(name=name)
+            return {"status": "success", "message": f"StorageClass '{name}' eliminata."}
+        except Exception as e:
+            self._handle_exception(e, f"Eliminazione StorageClass '{name}'")
 
     def _handle_exception(self, e: Exception, context: str):
         # Timeout e connessione: il cluster era irraggiungibile

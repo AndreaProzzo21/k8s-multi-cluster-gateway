@@ -1,7 +1,7 @@
 import asyncio
 
 from functools import partial
-from typing import List, Dict
+from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status, Query
@@ -423,3 +423,59 @@ async def delete_ingress_resource(
 ):
     """Elimina una risorsa Ingress dal namespace."""
     return await _run(manager.delete_ingress, name, namespace)
+
+@router.get("/cluster/volumes")
+async def get_persistent_volumes(
+    manager: CoreManager = Depends(get_current_core_manager)
+):
+    """Risorsa a livello di Cluster: PV."""
+    return await _run(manager.list_persistent_volumes)
+
+@router.get("/namespaces/{namespace}/pvc")
+async def get_namespaced_pvc(
+    namespace: str,
+    manager: CoreManager = Depends(get_current_core_manager)
+):
+    """Risorsa a livello di Namespace: PVC."""
+    return await _run(manager.list_namespaced_pvc, namespace)
+
+@router.delete("/namespaces/{namespace}/pvc/{name}")
+async def delete_pvc(
+    namespace: str,
+    name: str,
+    manager: CoreManager = Depends(get_current_core_manager)
+):
+    """Elimina un PVC specifico."""
+    return await _run(manager.delete_namespaced_pvc, name, namespace)
+
+@router.get("/cluster/storage-classes")
+async def get_storage_classes(manager: CoreManager = Depends(get_current_core_manager)):
+    return await _run(manager.list_storage_classes)
+
+
+
+@router.get("/namespaces/{namespace}/statefulsets")
+async def get_stateful_sets(
+    namespace: str, 
+    label_selector: Optional[str] = None,  # Aggiungi questa riga
+    manager: CoreManager = Depends(get_current_core_manager)
+):
+    """Recupera gli StatefulSet, opzionalmente filtrati per label."""
+    return await _run(manager.list_namespaced_stateful_sets, namespace, label_selector)
+
+@router.delete("/namespaces/{namespace}/statefulsets/{name}")
+async def delete_stateful_set(
+    namespace: str,
+    name: str,
+    manager: CoreManager = Depends(get_current_core_manager)
+):
+    """Elimina uno StatefulSet specifico."""
+    return await _run(manager.delete_namespaced_stateful_set, name, namespace)
+
+@router.delete("/cluster/storage-classes/{name}")
+async def delete_cluster_storage_class(
+    name: str,
+    manager: CoreManager = Depends(get_current_core_manager)
+):
+    """Elimina una StorageClass specifica a livello di cluster."""
+    return await _run(manager.delete_storage_class, name)
