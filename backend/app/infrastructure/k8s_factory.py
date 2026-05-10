@@ -191,6 +191,7 @@ class K8sClientFactory:
             "apps_v1":        client.AppsV1Api(api_client),
             "rbac_v1":        client.RbacAuthorizationV1Api(api_client),
             "networking_v1":  client.NetworkingV1Api(api_client),
+            "storage_v1":     client.StorageV1Api(api_client)
         }
 
     # ---------------------------------------------------------------------------
