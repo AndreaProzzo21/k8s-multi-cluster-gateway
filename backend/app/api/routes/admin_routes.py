@@ -1,18 +1,15 @@
 from fastapi import APIRouter, HTTPException, Header, Depends, UploadFile, File, Form, Body
 from app.infrastructure.database import SessionLocal, ClusterModel, ProfileModel
 from app.api.schemas.cluster_schema import ProfileCreate
+from app.api.dependencies.get_admin_key import require_admin_key
+from app.infrastructure.cluster_scanner import scan_all_clusters
 from typing import Optional
 import os
 
 admin_router = APIRouter()
-ADMIN_KEY = os.getenv("ADMIN_MASTER_KEY", "super-secret-admin-key")
-
-def verify_admin(master_key: str = Header(...)):
-    if master_key != ADMIN_KEY:
-        raise HTTPException(status_code=403, detail="Forbidden: Invalid Admin Key")
 
 # --- CLUSTER ENDPOINT (Versione con Upload File) ---
-@admin_router.post("/clusters", dependencies=[Depends(verify_admin)])
+@admin_router.post("/clusters", dependencies=[Depends(require_admin_key)])
 async def add_cluster(
     id: str = Form(...),
     name: str = Form(...),
@@ -52,7 +49,7 @@ async def add_cluster(
         db.close()
 
 # --- PROFILE ENDPOINT (Invariato, usa JSON) ---
-@admin_router.post("/profiles", dependencies=[Depends(verify_admin)])
+@admin_router.post("/profiles", dependencies=[Depends(require_admin_key)])
 async def add_profile(profile_data: ProfileCreate):
     db = SessionLocal()
     try:
@@ -69,7 +66,7 @@ async def add_profile(profile_data: ProfileCreate):
         db.close()
 
 # --- DELETE ENDPOINTS (Invariati) ---
-@admin_router.delete("/clusters/{cluster_id}", dependencies=[Depends(verify_admin)])
+@admin_router.delete("/clusters/{cluster_id}", dependencies=[Depends(require_admin_key)])
 async def delete_cluster(cluster_id: str):
     db = SessionLocal()
     try:
@@ -83,7 +80,7 @@ async def delete_cluster(cluster_id: str):
     finally:
         db.close()
 
-@admin_router.delete("/profiles/{profile_id}", dependencies=[Depends(verify_admin)])
+@admin_router.delete("/profiles/{profile_id}", dependencies=[Depends(require_admin_key)])
 async def delete_profile(profile_id: int):
     db = SessionLocal()
     try:
@@ -99,7 +96,7 @@ async def delete_profile(profile_id: int):
 
 # --- GET ENDPOINTS (Retrieve) ---
 
-@admin_router.get("/clusters", dependencies=[Depends(verify_admin)])
+@admin_router.get("/clusters", dependencies=[Depends(require_admin_key)])
 async def list_clusters():
     db = SessionLocal()
     try:
@@ -114,7 +111,7 @@ async def list_clusters():
     finally:
         db.close()
 
-@admin_router.get("/profiles", dependencies=[Depends(verify_admin)])
+@admin_router.get("/profiles", dependencies=[Depends(require_admin_key)])
 async def list_profiles():
     db = SessionLocal()
     try:
@@ -130,7 +127,7 @@ async def list_profiles():
 
 # --- PATCH ENDPOINTS (Update) ---
 
-@admin_router.patch("/clusters/{cluster_id}", dependencies=[Depends(verify_admin)])
+@admin_router.patch("/clusters/{cluster_id}", dependencies=[Depends(require_admin_key)])
 async def update_cluster(
     cluster_id: str, 
     name: Optional[str] = Form(None),
@@ -154,7 +151,7 @@ async def update_cluster(
     finally:
         db.close()
 
-@admin_router.patch("/profiles/{profile_id}", dependencies=[Depends(verify_admin)])
+@admin_router.patch("/profiles/{profile_id}", dependencies=[Depends(require_admin_key)])
 async def update_profile(
     profile_id: int, 
     gateway_password: Optional[str] = Body(None),
@@ -173,3 +170,13 @@ async def update_profile(
         return {"message": f"Profile {profile_id} updated"}
     finally:
         db.close()
+
+# --- NUOVO ENDPOINT GLOBAL HEALTH ---
+@admin_router.get("/fleet/status", dependencies=[Depends(require_admin_key)] )
+async def get_fleet_status():
+    """
+    Raccoglie lo stato di salute di tutti i cluster registrati.
+    Accessibile solo tramite X-Admin-Key.
+    """
+    results = await scan_all_clusters()
+    return results

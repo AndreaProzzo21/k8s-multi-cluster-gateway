@@ -28,7 +28,7 @@ class CoreManager:
         self.api_client = self.core_v1.api_client
 
 
-    def check_connectivity(self) -> dict:
+    def check_connectivity(self, **kwargs) -> dict:
         """
         Verifica la connettività al cluster con una chiamata che non richiede
         permessi RBAC specifici: /version è accessibile a qualsiasi SA autenticato.
@@ -37,7 +37,7 @@ class CoreManager:
         try:
             # VersionApi non richiede nessun permesso RBAC — risponde a tutti
             # i token validi indipendentemente dal profilo o namespace.
-            version_info = client.VersionApi(self.api_client).get_code()
+            version_info = client.VersionApi(self.api_client).get_code(**kwargs)
             return {
                 "status": "reachable",
                 "server_version": f"{version_info.major}.{version_info.minor}"
@@ -96,9 +96,9 @@ class CoreManager:
         except Exception as e:
             self._handle_exception(e, f"Creazione Namespace '{name}'")
 
-    def list_namespaces(self):
+    def list_namespaces(self, **kwargs):
         try:
-            ns_list = self.core_v1.list_namespace()
+            ns_list = self.core_v1.list_namespace(**kwargs)
             return {
                 "can_list": True,
                 "items": [{"name": ns.metadata.name, "status": ns.status.phase, "creation_timestamp": ns.metadata.creation_timestamp.isoformat() if ns.metadata.creation_timestamp else None} for ns in ns_list.items]
@@ -163,25 +163,39 @@ class CoreManager:
 
     # --- POD OPERATIONS ---
 
-    def list_pods(self, namespace: str, label_selector: str = None):
-        """Elenca i pod con filtro opzionale per label."""
+    def list_pods(self, namespace: str = None, label_selector: str = None, **kwargs):
+        """
+        Elenca i pod. Se namespace è None, elenca i pod di tutto il cluster (Cluster-wide).
+        Supporta parametri extra come _request_timeout.
+        """
         try:
-            # Passiamo label_selector alla chiamata SDK
-            pods = self.core_v1.list_namespaced_pod(
-                namespace=namespace, 
-                label_selector=label_selector
-            )
+            if namespace:
+                # Caso standard: namespace specifico (User Console)
+                pods = self.core_v1.list_namespaced_pod(
+                    namespace=namespace, 
+                    label_selector=label_selector,
+                    **kwargs
+                )
+            else:
+                # Caso Admin: Tutti i namespace del cluster (Admin Console)
+                pods = self.core_v1.list_pod_for_all_namespaces(
+                    label_selector=label_selector,
+                    **kwargs
+                )
+                
             return [
                 {
                     "name": p.metadata.name,
+                    "namespace": p.metadata.namespace, # Aggiunto per chiarezza admin
                     "status": p.status.phase,
                     "pod_ip": p.status.pod_ip,
                     "node_name": p.spec.node_name,
-                    "labels": p.metadata.labels # Utile restituirle per vederle nella UI
+                    "labels": p.metadata.labels
                 } for p in pods.items
             ]
         except Exception as e:
-            self._handle_exception(e, f"List Pods in '{namespace}'")
+            context = f"List Pods in '{namespace or 'All Namespaces'}'"
+            self._handle_exception(e, context)
 
 
     def get_pod_by_name(self, name: str, namespace: str):
@@ -428,13 +442,13 @@ class CoreManager:
 
     # --- NODE OPERATIONS (CLUSTER ADMIN) ---
 
-    def list_nodes(self):
+    def list_nodes(self, **kwargs):
         """
         Elenca i nodi del cluster con dettagli su risorse e versioni.
         Richiede permessi di Cluster Admin.
         """
         try:
-            nodes = self.core_v1.list_node()
+            nodes = self.core_v1.list_node(**kwargs)
             node_list = []
             for node in nodes.items:
                 # Estraiamo le info sulle risorse (Capacity vs Allocatable)
@@ -649,21 +663,39 @@ class CoreManager:
             self._handle_exception(e, f"Eliminazione StorageClass '{name}'")
 
     def _handle_exception(self, e: Exception, context: str):
-        # Timeout e connessione: il cluster era irraggiungibile
+        # 1. Gestione specifica per i TIMEOUT (evita traceback lunghi nei log)
         if isinstance(e, (
             urllib3.exceptions.MaxRetryError,
             urllib3.exceptions.ConnectTimeoutError,
             urllib3.exceptions.ReadTimeoutError,
             urllib3.exceptions.NewConnectionError,
-            ConnectionRefusedError,
+            ConnectionRefusedError
         )):
+            # Facciamo un log sintetico a livello backend
+            # import logging -> logger = logging.getLogger("k8s_gateway")
+            # logger.warning(f"Timeout cluster: {context}")
+            
             raise K8sCommunicationException(
                 f"Cluster offline ({context}): connection timeout.",
                 status_code=504
             )
+
+        # 2. Gestione errori senza status (errori logici o di rete generici)
         if not hasattr(e, 'status'):
              raise K8sBaseException(f"Errore interno ({context}): {str(e)}", status_code=500)
-        if e.status == 404: raise K8sResourceNotFoundException(f"{context} non trovato", status_code=404)
-        if e.status in [401, 403]: raise K8sUnauthorisedException(f"Accesso negato: {context}", status_code=e.status)
-        if e.status == 409: raise K8sBaseException(f"Conflitto: {context} esiste già", status_code=409)
-        raise K8sCommunicationException(f"Errore K8s ({context}): {getattr(e, 'reason', 'Unknown')}", status_code=e.status)
+
+        # 3. Mappatura codici HTTP standard Kubernetes
+        if e.status == 404: 
+            raise K8sResourceNotFoundException(f"{context} non trovato", status_code=404)
+        
+        if e.status in [401, 403]: 
+            raise K8sUnauthorisedException(f"Accesso negato: {context}", status_code=e.status)
+        
+        if e.status == 409: 
+            raise K8sBaseException(f"Conflitto: {context} esiste già", status_code=409)
+
+        # 4. Fallback per altri errori API
+        raise K8sCommunicationException(
+            f"Errore K8s ({context}): {getattr(e, 'reason', 'Unknown')}", 
+            status_code=e.status
+        )
