@@ -87,6 +87,6 @@ def create_app() -> FastAPI:
     app.include_router(helm_router, prefix="/api/v1/helm", tags=["Helm Management"])
     
     # Rotte Administrative
-    app.include_router(admin_router, prefix="/admin", tags=["Admin Operations"])
+    app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin Operations"])
 
     return app

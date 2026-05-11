@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K8s Gateway - Cluster Admin Management</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* --- ADMIN LOGIN: IDENTICO ALLO STILE MAIN LOGIN --- */
+        .login-card {
+            padding: 1.5rem !important;
+            max-width: 360px !important;
+            margin: auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+        }
+        .auth-header {
+            margin-bottom: 1.5rem !important;
+            text-align: center;
+        }
+        .auth-logo {
+            width: 64px; height: 64px;
+            object-fit: contain;
+            margin-bottom: 0.5rem;
+            border-radius: 8px;
+        }
+
+        /* --- DASHBOARD FLEET: STILE AVANZATO --- */
+        .fleet-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); 
+            gap: 1.5rem; padding: 1rem; 
+        }
+        .fleet-card { 
+            background: white; border: 1px solid var(--border); 
+            border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-sm);
+        }
+        .fleet-card-header { 
+            padding: 1rem; border-bottom: 1px solid var(--border); 
+            display: flex; justify-content: space-between; align-items: center; background: #f8fafc; 
+        }
+        .fleet-card-body { padding: 1.25rem; }
+
+        /* Stats Widgets */
+        .stats-bar {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 10px; margin-bottom: 1.25rem;
+        }
+        .stat-item {
+            background: #f1f5f9; padding: 8px; border-radius: 8px; text-align: center;
+        }
+        .stat-label { font-size: 0.6rem; color: #64748b; font-weight: 700; text-transform: uppercase; }
+        .stat-value { font-size: 0.85rem; font-weight: 700; color: #1e293b; }
+
+        /* Nodi Design Professionale */
+        .nodes-container { 
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; 
+        }
+        .node-item { 
+            background: #ffffff; border: 1px solid #e2e8f0; 
+            padding: 10px; border-radius: 10px; 
+            display: flex; align-items: center; gap: 10px; transition: border-color 0.2s;
+        }
+        .node-item:hover { border-color: var(--accent); }
+        .node-status-indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .node-info { display: flex; flex-direction: column; line-height: 1.3; }
+        .node-name { font-size: 0.75rem; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+        .node-role { font-size: 0.65rem; color: #64748b; font-weight: 500; text-transform: uppercase; }
+
+        /* Utility */
+        .status-pill { padding: 3px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
+        .status-online { background: #dcfce7; color: #166534; }
+        .status-offline { background: #fee2e2; color: #991b1b; }
+        .resource-label { font-size: 0.7rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; display: block; }
+        
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
+        .modal-content { background: white; margin: 5% auto; padding: 20px; border-radius: 12px; width: 450px; }
+        .btn-edit { background: #f1f5f9; color: #475569; border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; cursor: pointer; }
+    </style>
+</head>
+<body class="dashboard-page">
+
+    <div id="adminLogin" style="display: flex; align-items: center; justify-content: center; height: 100vh; background: #f1f5f9;">
+        <div class="login-card">
+            <div class="auth-header">
+                <img src="logo_dashboard.jfif" alt="Logo" class="auth-logo">
+                <h1>Admin Access</h1>
+                <p>Master Fleet Controller</p>
+            </div>
+            <div class="form-group">
+                <label>Master API Key</label>
+                <input type="password" id="masterKeyInput" placeholder="••••••••••••••••" required>
+            </div>
+            <button onclick="adminLogin()" class="btn-primary" style="width: 100%; padding: 0.7rem; margin-top: 0.5rem;">
+                Unlock Infrastructure
+            </button>
+            <div id="loginError" style="color:#e11d48; font-size:0.8rem; text-align:center; margin-top:10px;"></div>
+        </div>
+    </div>
+
+    <div id="adminDashboard" style="display: none;">
+        <nav class="navbar">
+            <div class="nav-brand">
+                <i class="fas fa-shield-alt"></i> CLUSTER ADMIN MANAGEMENT
+            </div>
+            <div class="nav-right-container">
+                <button onclick="openClusterModal()" class="btn-action"><i class="fas fa-plus"></i> Add Cluster</button>
+                <button onclick="openProfileModal()" class="btn-action" style="background: #475569;"><i class="fas fa-key"></i> Add Profile</button>
+                <div class="nav-divider"></div>
+                <button onclick="adminLogout()" class="btn-logout"><i class="fas fa-power-off"></i></button>
+            </div>
+        </nav>
+
+        <div class="main-container">
+            <aside class="sidebar">
+                <div class="sidebar-section">Infrastructure</div>
+                <ul>
+                    <li id="menu-fleet" class="active" onclick="setActive(this); loadFleetStatus()"><i class="fas fa-heartbeat"></i> Global Health</li>
+                    <li id="menu-clusters" onclick="setActive(this); loadClusterList()"><i class="fas fa-server"></i> Clusters DB</li>
+                    <li id="menu-profiles" onclick="setActive(this); loadProfileList()"><i class="fas fa-address-card"></i> Profiles Registry</li>
+                </ul>
+            </aside>
+
+            <main class="content">
+                <div id="adminResultArea"></div>
+            </main>
+        </div>
+    </div>
+
+    <div id="clusterModal" class="modal">
+        <div class="modal-content">
+            <h3 id="clusterModalTitle">Cluster Config</h3>
+            <form id="clusterForm">
+                <input type="hidden" name="_is_edit" id="clusterIsEdit">
+                <div class="form-group"><label>ID (Permanent)</label><input type="text" name="id" id="clusterIdField" required></div>
+                <div class="form-group"><label>Display Name</label><input type="text" name="name" required></div>
+                <div class="form-group"><label>API Host</label><input type="text" name="host" required></div>
+                <div class="form-group"><label>CA File (PEM)</label><input type="file" name="ca_file"></div>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button type="submit" class="btn-primary" style="flex:1">Save</button>
+                    <button type="button" onclick="closeModals()" class="btn-logout" style="background:#94a3b8; flex:1">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="profileModal" class="modal">
+        <div class="modal-content">
+            <h3 id="profileModalTitle">Service Profile</h3>
+            <form id="profileForm">
+                <input type="hidden" name="_id" id="profileIdField">
+                <div class="form-group">
+                    <label>Target Cluster</label>
+                    <select name="cluster_id" id="clusterSelect" required></select>
+                </div>
+                <div class="form-group"><label>Profile Name</label><input type="text" name="name" id="profileNameField" required></div>
+                <div class="form-group"><label>Gateway Password</label><input type="password" name="gateway_password" placeholder="••••••••"></div>
+                <div class="form-group"><label>K8s SA Token</label><input type="text" name="k8s_token" placeholder="Paste token here"></div>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button type="submit" class="btn-primary" style="flex:1">Save</button>
+                    <button type="button" onclick="closeModals()" class="btn-logout" style="background:#94a3b8; flex:1">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const MASTER_API = 'http://localhost:8000/api/v1/admin';
+
+        function adminLogin() {
+            const key = document.getElementById('masterKeyInput').value;
+            if(!key) return;
+            sessionStorage.setItem('admin_master_key', key);
+            checkAuth();
+        }
+
+        function adminLogout() {
+            sessionStorage.removeItem('admin_master_key');
+            location.reload();
+        }
+
+        function checkAuth() {
+            if (sessionStorage.getItem('admin_master_key')) {
+                document.getElementById('adminLogin').style.display = 'none';
+                document.getElementById('adminDashboard').style.display = 'block';
+                loadFleetStatus();
+            }
+        }
+
+        async function adminRequest(path, method = 'GET', body = null, isFormData = false) {
+            const key = sessionStorage.getItem('admin_master_key');
+            const options = { method, headers: { 'X-Admin-Key': key } };
+            if (body) {
+                if (isFormData) options.body = body;
+                else {
+                    options.headers['Content-Type'] = 'application/json';
+                    options.body = JSON.stringify(body);
+                }
+            }
+            const res = await fetch(`${MASTER_API}${path}`, options);
+            if (res.status === 403) { sessionStorage.removeItem('admin_master_key'); location.reload(); }
+            if (!res.ok) throw new Error(await res.text());
+            return res.json();
+        }
+
+        async function loadFleetStatus() {
+            const area = document.getElementById('adminResultArea');
+            area.innerHTML = '<div class="fleet-grid" id="fleetGrid"></div>';
+            try {
+                const data = await adminRequest('/fleet/status');
+                document.getElementById('fleetGrid').innerHTML = data.map(c => `
+                    <div class="fleet-card">
+                        <div class="fleet-card-header">
+                            <div>
+                                <strong>${c.cluster_name}</strong> 
+                                <span style="font-size:0.65rem; opacity:0.6; margin-left:5px;">${c.server_version || ''}</span>
+                                <br><small style="font-size:0.65rem; color:#64748b">${c.host}</small>
+                            </div>
+                            <span class="status-pill ${c.status === 'online' ? 'status-online' : 'status-offline'}">${c.status}</span>
+                        </div>
+                        <div class="fleet-card-body">
+                            ${c.error ? `<div style="color:var(--danger); font-size:0.7rem; background:#fff1f2; padding:10px; border-radius:8px;"><i class="fas fa-exclamation-triangle"></i> ${c.error}</div>` : `
+                                
+                                <div class="stats-bar">
+                                    <div class="stat-item">
+                                        <div class="stat-label">Pods</div>
+                                        <div class="stat-value">${c.stats.pods_running}/${c.stats.pods_total}</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-label">CPU</div>
+                                        <div class="stat-value">${c.stats.cpu_total} cores</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-label">NS</div>
+                                        <div class="stat-value">${c.stats.namespaces_total}</div>
+                                    </div>
+                                </div>
+
+                                <span class="resource-label">Cluster Nodes</span>
+                                <div class="nodes-container">
+                                    ${(c.nodes || []).map(n => `
+                                        <div class="node-item">
+                                            <div class="node-status-indicator" style="background:${n.status === 'Ready' ? 'var(--success)' : 'var(--danger)'}"></div>
+                                            <div class="node-info">
+                                                <span class="node-name" title="${n.name}">${n.name}</span>
+                                                <span class="node-role">${n.role} • ${n.cpu} CPU</span>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                ${c.stats.pods_failed > 0 ? `<div style="margin-top:12px; color:var(--danger); font-size:0.65rem; font-weight:700;"><i class="fas fa-biohazard"></i> ATTENTION: ${c.stats.pods_failed} pods in error state</div>` : ''}
+                            `}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) { area.innerHTML = `<p class="error-box">${e.message}</p>`; }
+        }
+
+        async function loadClusterList() {
+            const area = document.getElementById('adminResultArea');
+            try {
+                const data = await adminRequest('/clusters');
+                area.innerHTML = `<h2>Registered Clusters</h2><table class="data-table">
+                    <thead><tr><th>ID</th><th>Name</th><th>Endpoint</th><th>CA</th><th>Actions</th></tr></thead>
+                    <tbody>${data.map(c => `<tr>
+                        <td><strong>${c.id}</strong></td><td>${c.name}</td><td><code>${c.host}</code></td>
+                        <td>${c.has_ca ? '✅' : '❌'}</td>
+                        <td>
+                            <button class="btn-edit" onclick='openClusterModal(${JSON.stringify(c)})'><i class="fas fa-cog"></i></button>
+                            <button class="delete-btn btn-small" onclick="deleteCluster('${c.id}')"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>`).join('')}</tbody></table>`;
+            } catch (e) { alert(e.message); }
+        }
+
+        async function loadProfileList() {
+            const area = document.getElementById('adminResultArea');
+            try {
+                const data = await adminRequest('/profiles');
+                area.innerHTML = `<h2>Profiles Registry</h2><table class="data-table">
+                    <thead><tr><th>Cluster</th><th>Profile</th><th>Token Preview</th><th>Actions</th></tr></thead>
+                    <tbody>${data.map(p => `<tr>
+                        <td><span class="badge">${p.cluster_id}</span></td><td><strong>${p.name}</strong></td><td><code>${p.token_preview}</code></td>
+                        <td>
+                            <button class="btn-edit" onclick='openProfileModal(${JSON.stringify(p)})'><i class="fas fa-user-cog"></i></button>
+                            <button class="delete-btn btn-small" onclick="deleteProfile(${p.id})"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>`).join('')}</tbody></table>`;
+            } catch (e) { alert(e.message); }
+        }
+
+        // CRUD Logic
+        async function deleteCluster(id) { if(confirm(`Confirm delete ${id}?`)) { await adminRequest(`/clusters/${id}`, 'DELETE'); loadClusterList(); } }
+        async function deleteProfile(id) { if(confirm(`Confirm delete profile ${id}?`)) { await adminRequest(`/profiles/${id}`, 'DELETE'); loadProfileList(); } }
+
+        function openClusterModal(data = null) {
+            const form = document.getElementById('clusterForm'); form.reset();
+            if(data) {
+                document.getElementById('clusterIdField').value = data.id;
+                document.getElementById('clusterIdField').readOnly = true;
+                form.name.value = data.name; form.host.value = data.host;
+                document.getElementById('clusterIsEdit').value = "true";
+                document.getElementById('clusterModalTitle').innerText = "Edit Cluster: " + data.id;
+            } else {
+                document.getElementById('clusterIdField').readOnly = false;
+                document.getElementById('clusterIsEdit').value = "false";
+                document.getElementById('clusterModalTitle').innerText = "Add New Cluster";
+            }
+            document.getElementById('clusterModal').style.display = 'block';
+        }
+
+        async function openProfileModal(data = null) {
+            const clusters = await adminRequest('/clusters');
+            const select = document.getElementById('clusterSelect');
+            select.innerHTML = clusters.map(c => `<option value="${c.id}">${c.id}</option>`).join('');
+            const form = document.getElementById('profileForm'); form.reset();
+            if(data) {
+                document.getElementById('profileIdField').value = data.id;
+                select.value = data.cluster_id; form.name.value = data.name;
+                document.getElementById('profileModalTitle').innerText = "Edit Profile: " + data.name;
+            } else {
+                document.getElementById('profileIdField').value = "";
+                document.getElementById('profileModalTitle').innerText = "Add New Profile";
+            }
+            document.getElementById('profileModal').style.display = 'block';
+        }
+
+        function closeModals() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+
+        document.getElementById('clusterForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const isEdit = document.getElementById('clusterIsEdit').value === "true";
+            const id = document.getElementById('clusterIdField').value;
+            const formData = new FormData(e.target);
+            try {
+                await adminRequest(`/clusters${isEdit ? '/'+id : ''}`, isEdit ? 'PATCH' : 'POST', formData, true);
+                closeModals(); loadClusterList();
+            } catch(e) { alert(e.message); }
+        };
+
+        document.getElementById('profileForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const pid = document.getElementById('profileIdField').value;
+            const data = Object.fromEntries(new FormData(e.target));
+            if(pid) { if(!data.gateway_password) delete data.gateway_password; if(!data.k8s_token) delete data.k8s_token; }
+            try {
+                await adminRequest(`/profiles${pid ? '/'+pid : ''}`, pid ? 'PATCH' : 'POST', data);
+                closeModals(); loadProfileList();
+            } catch(e) { alert(e.message); }
+        };
+
+        function setActive(el) {
+            document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        checkAuth();
+    </script>
+</body>
+</html>
