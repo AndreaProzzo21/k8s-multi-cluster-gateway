@@ -5,6 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green?logo=fastapi)](https://fastapi.tiangolo.com)
 [![Docker](https://img.shields.io/badge/Docker-Compose-blue?logo=docker)](https://docker.com)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.25+-blue?logo=kubernetes)](https://kubernetes.io)
 [![Helm](https://img.shields.io/badge/Helm-3.x-blue?logo=helm)](https://helm.sh)
 
 ---
@@ -39,6 +40,26 @@ The result is a team-friendly control plane where access is managed through prof
 **Profile-based multi-tenancy.** Each cluster supports multiple profiles (e.g. `admin`, `dev`, `ci`), each mapping to a different Service Account. A user authenticates against a profile, not against the cluster directly.
 
 **Per-cluster Helm isolation.** Each cluster maintains its own Helm repository configuration and cache, invisible to users of other clusters.
+
+---
+
+### Granular Access Control & RBAC
+
+The Gateway is designed to be a transparent proxy for Kubernetes RBAC. This means you have **absolute freedom** in defining the power of each Profile.
+
+* **Full Admin Access**: Use a `cluster-admin` Service Account to manage the entire fleet, monitor nodes, and handle global configurations.
+* **Namespace-Restricted**: Create a Service Account limited to a single namespace (e.g., `development`). The user will be able to see and manage only that namespace; any attempt to access other resources will be blocked by Kubernetes and reported as `403 Unauthorized` by the Gateway.
+* **Read-Only Auditor**: Provide a token with only `get` and `list` permissions. The UI will automatically prevent or fail any "Write" operations (like scaling or deleting pods).
+
+**The Gateway ensures that:**
+
+1. **Backend Integrity**: Every request is signed server-side with the specific token of the profile. There is no way for a user to "escalate" privileges within the Gateway.
+2. **Frontend Consistency**: The UI propagates Kubernetes errors. If a Service Account cannot list Pods, the dashboard will gracefully show an unauthorized message, keeping the system secure and consistent with your cluster's security posture.
+
+### Pro-Tip: The "Admin" Convention
+
+While you can create profiles with **any permissions**, the background **Fleet Observer** (Global Health) specifically looks for a profile named `admin`, `gateway-admin`, or `cluster-admin` to collect infrastructure metrics.
+*To get the most out of the Admin Console, ensure at least one profile with these names has `cluster-reader` or `cluster-admin` privileges.*
 
 ---
 
@@ -135,68 +156,6 @@ sequenceDiagram
     GW->>FS: delete extracted chart dir
     GW-->>User: {success, stdout, stderr}
 ```
-
----
-
-# Kubernetes Multi-Cluster Access Gateway
-
-> A zero-knowledge, multi-tenant Kubernetes management platform. Credentials never leave the server — users get access, not keys.
-
-[![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green?logo=fastapi)](https://fastapi.tiangolo.com)
-[![Docker](https://img.shields.io/badge/Docker-Compose-blue?logo=docker)](https://docker.com)
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.25+-blue?logo=kubernetes)](https://kubernetes.io)
-[![Helm](https://img.shields.io/badge/Helm-3.x-blue?logo=helm)](https://helm.sh)
-
----
-
-## What is this platform?
-
-This gateway is a self-hosted web platform that acts as an authenticated proxy between your users and your Kubernetes clusters. Instead of distributing `kubeconfig` files or Service Account tokens, the platform issues short-lived JWTs that contain **no Kubernetes credentials**. Every real credential — SA token, CA certificate — lives exclusively in the server-side database and is injected per-request, invisible to the client.
-
-The result is a team-friendly control plane where access is managed through profiles, revocation is instant, and the blast radius of a stolen JWT is limited to what the gateway exposes — not direct cluster access.
-
-### Who is it for?
-
-- **DevOps Teams**: Manage access to multiple clusters (Prod, Staging, Dev) behind a protected VPN without sharing sensitive config files.
-- **K8s Enthusiasts**: An easy, lightweight web interface to monitor and manage home labs or personal clusters without the complexity of heavy enterprise tools.
-- **Edge & Digital Twin Developers**: Ideal for industrial contexts where you need to deploy "Digital Twins" or specific workloads to Edge nodes located near a factory. Just upload your Helm package via the ZIP feature to distribute applications globally with one click.
-
-**Two integrated consoles:**
-
-- **K8s Console** — real-time visibility and operations: namespaces, pods, deployments, services, RBAC, storage, events.
-- **Helm Console** — application lifecycle management: install charts from repositories or ZIP uploads, inspect history, rollback, lint before deploying.
-
----
-
-## Core Design Principles
-
-**Zero-knowledge client side.** The browser JWT contains only `cluster_id` and `profile`. The Kubernetes SA token and CA certificate are fetched server-side from the database on every authenticated request and discarded after use.
-
-**Stateless architecture.** The gateway holds no session state. Each request is fully self-contained: verify JWT → fetch credentials from DB → build scoped K8s client → forward request → discard client.
-
-**K8s enforces authorization.** The gateway delegates all resource-level access control to Kubernetes RBAC. A restricted Service Account will receive `403` from the cluster; the gateway propagates it to the frontend. No shadow permission system.
-
----
-
-### Granular Access Control & RBAC
-
-The Gateway is designed to be a transparent proxy for Kubernetes RBAC. This means you have **absolute freedom** in defining the power of each Profile.
-
-* **Full Admin Access**: Use a `cluster-admin` Service Account to manage the entire fleet, monitor nodes, and handle global configurations.
-* **Namespace-Restricted**: Create a Service Account limited to a single namespace (e.g., `development`). The user will be able to see and manage only that namespace; any attempt to access other resources will be blocked by Kubernetes and reported as `403 Unauthorized` by the Gateway.
-* **Read-Only Auditor**: Provide a token with only `get` and `list` permissions. The UI will automatically prevent or fail any "Write" operations (like scaling or deleting pods).
-
-**The Gateway ensures that:**
-
-1. **Backend Integrity**: Every request is signed server-side with the specific token of the profile. There is no way for a user to "escalate" privileges within the Gateway.
-2. **Frontend Consistency**: The UI propagates Kubernetes errors. If a Service Account cannot list Pods, the dashboard will gracefully show an unauthorized message, keeping the system secure and consistent with your cluster's security posture.
-
-### Pro-Tip: The "Admin" Convention
-
-While you can create profiles with **any permissions**, the background **Fleet Observer** (Global Health) specifically looks for a profile named `admin`, `gateway-admin`, or `cluster-admin` to collect infrastructure metrics.
-*To get the most out of the Admin Console, ensure at least one profile with these names has `cluster-reader` or `cluster-admin` privileges.*
-
 ---
 
 ## Admin Console & API
