@@ -134,11 +134,11 @@ sequenceDiagram
 
 ## Admin API
 
-Cluster and profile management is protected by a master key sent in the `master-key` HTTP header. This API is intended for platform administrators only and is not exposed through the frontend.
+Cluster and profile management is protected by a master key sent in the `X-Admin-Key` HTTP header. This API is intended for platform administrators only and is only exposed through the frontend through a dedicated console.
 
 ```
 Base path: /api/v1/admin
-Header:    master-key: <ADMIN_MASTER_KEY>
+Header:    X-Admin-Key: <ADMIN_MASTER_KEY>
 ```
 
 ### Clusters
@@ -163,7 +163,7 @@ Header:    master-key: <ADMIN_MASTER_KEY>
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/admin/clusters \
-  -H "master-key: your-admin-key" \
+  -H "X-Admin-Key: your-admin-key" \
   -F "id=MY-CLUSTER" \
   -F "name=Production K3s" \
   -F "host=https://10.0.0.1:6443" \
@@ -278,15 +278,21 @@ open http://localhost:80
 ```dotenv
 # JWT signing key — use a long random string, keep it secret
 JWT_SECRET_KEY=
+# Generate with: python -c "import secrets; print(secrets.token_hex(32))"
 
 # JWT signing algorithm
-JWT_SECRET_ALGORITHM=
+JWT_SECRET_ALGORITHM=HS256
 
 # Master key for the admin API — protect this carefully
 ADMIN_MASTER_KEY=
+# Generate with: python -c "import secrets; print(secrets.token_hex(32))"
 
-# SQLite database path (default works with the Docker volume)
-DATABASE_URL=
+# SQLite database path
+DATABASE_URL=data/gateway.db
+
+# Fernet encryption key for sensitive DB fields (k8s_token, gateway_password, ca_cert)
+ENCRYPTION_KEY=
+# Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
 ### Docker Compose
