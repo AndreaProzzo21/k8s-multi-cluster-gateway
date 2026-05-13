@@ -219,6 +219,7 @@ k8s-cloud-gateway/
 |       |   ├── registry.py
 │       │   └── exceptions.py
 │       └── infrastructure/
+|           ├── encryption.py                # Encryption of ca, password and SA token 
 │           ├── k8s_factory.py               # Authenticated K8s client builder
 │           ├── helm_kubeconfig.py           # Temp kubeconfig context manager
 │           └── database.py                 # SQLAlchemy models + SessionLocal
