@@ -96,12 +96,20 @@ async def delete_profile(profile_id: int):
 
 # --- GET ENDPOINTS (Retrieve) ---
 
+# --- GET ENDPOINTS con supporto Query ---
+
 @admin_router.get("/clusters", dependencies=[Depends(require_admin_key)])
-async def list_clusters():
+async def list_clusters(search: Optional[str] = None):
     db = SessionLocal()
     try:
-        clusters = db.query(ClusterModel).all()
-        # Restituiamo i dati escludendo magari il certificato intero per non appesantire la lista
+        query = db.query(ClusterModel)
+        if search:
+            # Filtra per ID o per Nome (case-insensitive)
+            query = query.filter(
+                (ClusterModel.id.ilike(f"%{search}%")) | 
+                (ClusterModel.name.ilike(f"%{search}%"))
+            )
+        clusters = query.all()
         return [{
             "id": c.id, 
             "name": c.name, 
@@ -112,15 +120,21 @@ async def list_clusters():
         db.close()
 
 @admin_router.get("/profiles", dependencies=[Depends(require_admin_key)])
-async def list_profiles():
+async def list_profiles(cluster_id: Optional[str] = None, name: Optional[str] = None):
     db = SessionLocal()
     try:
-        profiles = db.query(ProfileModel).all()
+        query = db.query(ProfileModel)
+        if cluster_id:
+            query = query.filter(ProfileModel.cluster_id == cluster_id.upper())
+        if name:
+            query = query.filter(ProfileModel.name.ilike(f"%{name}%"))
+            
+        profiles = query.all()
         return [{
             "id": p.id,
             "cluster_id": p.cluster_id,
             "name": p.name,
-            "token_preview": f"{p.k8s_token[:10]}..." # Solo un'anteprima per sicurezza
+            "token_preview": f"{p.k8s_token[:10]}..." if p.k8s_token else "N/A"
         } for p in profiles]
     finally:
         db.close()
