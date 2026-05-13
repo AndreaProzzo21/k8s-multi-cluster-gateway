@@ -10,6 +10,39 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         /* --- ADMIN LOGIN: IDENTICO ALLO STILE MAIN LOGIN --- */
+        /* Spinner Container centrato */
+        /* Spinner Container */
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px; /* Altezza per centrarlo bene nella pagina */
+            width: 100%;
+        }
+
+        /* La ruotina blu */
+        .spinner {
+            width: 45px;
+            height: 45px;
+            border: 4px solid #e2e8f0; /* Grigio chiaro per la base */
+            border-top: 4px solid cornflowerblue; /* BLU per la parte rotante */
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #64748b;
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
         .login-card {
             padding: 1.5rem !important;
             max-width: 360px !important;
@@ -209,57 +242,91 @@
 
         async function loadFleetStatus() {
             const area = document.getElementById('adminResultArea');
-            area.innerHTML = '<div class="fleet-grid" id="fleetGrid"></div>';
+            
+            // Mostriamo lo spinner
+            area.innerHTML = `
+                <div class="loading-container">
+                    <div class="spinner"></div>
+                    <div class="loading-text">Retrieving Infrastructure Fleet Status...</div>
+                </div>`;
+            
             try {
                 const data = await adminRequest('/fleet/status');
-                document.getElementById('fleetGrid').innerHTML = data.map(c => `
-                    <div class="fleet-card">
-                        <div class="fleet-card-header">
-                            <div>
-                                <strong>${c.cluster_name}</strong> 
-                                <span style="font-size:0.65rem; opacity:0.6; margin-left:5px;">${c.server_version || ''}</span>
-                                <br><small style="font-size:0.65rem; color:#64748b">${c.host}</small>
-                            </div>
-                            <span class="status-pill ${c.status === 'online' ? 'status-online' : 'status-offline'}">${c.status}</span>
-                        </div>
-                        <div class="fleet-card-body">
-                            ${c.error ? `<div style="color:var(--danger); font-size:0.7rem; background:#fff1f2; padding:10px; border-radius:8px;"><i class="fas fa-exclamation-triangle"></i> ${c.error}</div>` : `
-                                
-                                <div class="stats-bar">
-                                    <div class="stat-item">
-                                        <div class="stat-label">Pods</div>
-                                        <div class="stat-value">${c.stats.pods_running}/${c.stats.pods_total}</div>
-                                    </div>
-                                    <div class="stat-item">
-                                        <div class="stat-label">CPU</div>
-                                        <div class="stat-value">${c.stats.cpu_total} cores</div>
-                                    </div>
-                                    <div class="stat-item">
-                                        <div class="stat-label">NS</div>
-                                        <div class="stat-value">${c.stats.namespaces_total}</div>
-                                    </div>
-                                </div>
+                
+                // GESTIONE CACHE VUOTA (Scan ancora in corso al primo avvio)
+                if (!data || data.length === 0) {
+                    area.innerHTML = `
+                        <div class="loading-container">
+                            <div class="spinner"></div>
+                            <div class="loading-text">Initial scan in progress... please wait a few seconds.</div>
+                        </div>`;
+                    // Riprova tra 3 secondi automaticamente
+                    setTimeout(loadFleetStatus, 3000);
+                    return;
+                }
 
-                                <span class="resource-label">Cluster Nodes</span>
-                                <div class="nodes-container">
-                                    ${(c.nodes || []).map(n => `
-                                        <div class="node-item">
-                                            <div class="node-status-indicator" style="background:${n.status === 'Ready' ? 'var(--success)' : 'var(--danger)'}"></div>
-                                            <div class="node-info">
-                                                <span class="node-name" title="${n.name}">${n.name}</span>
-                                                <span class="node-role">${n.role} • ${n.cpu} CPU</span>
-                                            </div>
-                                        </div>
-                                    `).join('')}
+                area.innerHTML = '<div class="fleet-grid" id="fleetGrid"></div>';
+                const grid = document.getElementById('fleetGrid');
+                
+                grid.innerHTML = data.map(c => {
+                    const isOnline = c.status === 'online';
+                    const nodes = c.nodes || [];
+                    // Assicurati che namespaces esista come oggetto
+                    const nsCount = c.namespaces?.items ? c.namespaces.items.length : 0;
+
+                    return `
+                        <div class="fleet-card">
+                            <div class="fleet-card-header">
+                                <div>
+                                    <strong>${c.cluster_name}</strong> 
+                                    <span style="font-size:0.65rem; opacity:0.6; margin-left:5px;">${c.server_version || ''}</span>
+                                    <br><small style="font-size:0.65rem; color:#64748b">${c.host}</small>
                                 </div>
-                                ${c.stats.pods_failed > 0 ? `<div style="margin-top:12px; color:var(--danger); font-size:0.65rem; font-weight:700;"><i class="fas fa-biohazard"></i> ATTENTION: ${c.stats.pods_failed} pods in error state</div>` : ''}
-                            `}
-                        </div>
-                    </div>
-                `).join('');
-            } catch (e) { area.innerHTML = `<p class="error-box">${e.message}</p>`; }
+                                <span class="status-pill ${isOnline ? 'status-online' : 'status-offline'}">${c.status}</span>
+                            </div>
+                            <div class="fleet-card-body">
+                                ${c.error ? `<div style="color:var(--danger); font-size:0.7rem; background:#fff1f2; padding:10px; border-radius:8px;"><i class="fas fa-exclamation-triangle"></i> ${c.error}</div>` : `
+                                    
+                                    <div class="stats-bar">
+                                        <div class="stat-item">
+                                            <div class="stat-label">Pods</div>
+                                            <div class="stat-value">${c.stats.pods_running}/${c.stats.pods_total}</div>
+                                        </div>
+                                        <div class="stat-item">
+                                            <div class="stat-label">CPU</div>
+                                            <div class="stat-value">${c.stats.cpu_total} cores</div>
+                                        </div>
+                                        <div class="stat-item">
+                                            <div class="stat-label">NS</div>
+                                            <div class="stat-value">${nsCount}</div>
+                                        </div>
+                                    </div>
+
+                                    <span class="resource-label">Cluster Nodes</span>
+                                    <div class="nodes-container">
+                                        ${nodes.map(n => `
+                                            <div class="node-item">
+                                                <div class="node-status-indicator" style="background:${n.status === 'Ready' ? 'var(--success)' : 'var(--danger)'}"></div>
+                                                <div class="node-info">
+                                                    <span class="node-name" title="${n.name}">${n.name}</span>
+                                                    <span class="node-role">${n.role} • ${n.cpu} CPU</span>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                `}
+                            </div>
+                        </div>`;
+                }).join('');
+            } catch (e) { 
+                area.innerHTML = `<div class="error-box" style="text-align:center; padding:50px;">
+                    <i class="fas fa-exclamation-circle fa-2x" style="color:var(--danger)"></i>
+                    <p style="margin-top:15px; font-weight:600;">Error: ${e.message}</p>
+                </div>`; 
+            }
         }
 
+        // --- 2. CLUSTER INVENTORY ---
         async function loadClusterList() {
             const area = document.getElementById('adminResultArea');
             try {
