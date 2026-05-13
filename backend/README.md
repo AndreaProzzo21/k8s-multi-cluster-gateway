@@ -35,6 +35,7 @@
 | `pyyaml` | YAML parsing for universal apply and Helm values files |
 | `urllib3` | HTTP connection pool (transitive via `kubernetes`) |
 | `python-multipart` | `multipart/form-data` support for file uploads |
+| `cryptography` | Fernet symmetric encryption for sensitive database columns |
 
 Helm operations use the `helm` binary installed in the container image — no Python Helm library. The binary is invoked via `asyncio.create_subprocess_exec`.
 
@@ -84,11 +85,31 @@ erDiagram
     CLUSTER ||--o{ PROFILE : "has"
 ```
 
-**`ClusterModel`** stores the API server host and the PEM CA certificate. The CA cert is stored as a plain text string and written to disk as a temporary file only when needed by the K8s client (see [Section 6](#6-k8s-client-factory--certificate-cache)).
+**`ClusterModel`** stores the API server host and the PEM CA certificate. The CA cert is stored encrypted in the database and written to disk as a temporary file only when needed by the K8s client (see [Section 6](#6-k8s-client-factory--certificate-cache)).
 
 **`ProfileModel`** maps a human-readable profile name and a gateway password to a Kubernetes Service Account token. The gateway password is the credential users type at login — it is not the SA token. This decoupling means rotating a SA token only requires updating `k8s_token` in the database, with no user-facing credential change.
 
-> ⚠️ **Known limitation:** `gateway_password` and `k8s_token` are currently stored in plaintext. AES-256 encryption for these columns is on the roadmap.
+### At-rest encryption
+
+The three most sensitive fields are encrypted in the SQLite database using **Fernet** symmetric encryption (`cryptography` package):
+
+| Field | Model | Sensitivity |
+|---|---|---|
+| `gateway_password` | `ProfileModel` | Gateway login credential |
+| `k8s_token` | `ProfileModel` | Direct K8s API access |
+| `ca_cert` | `ClusterModel` | Cluster topology + TLS trust anchor |
+
+Encryption is implemented via `EncryptedString`, a SQLAlchemy `TypeDecorator` in `app/infrastructure/database.py`. It intercepts every `INSERT`/`UPDATE` to encrypt before writing, and every `SELECT` to decrypt after reading. The rest of the application — `registry.py`, `auth_handler.py`, `admin_routes.py` — works with plaintext strings and is unaware of the encryption layer.
+
+**Fernet** (AES-128-CBC + HMAC-SHA256) was chosen over hashing because `gateway_password` must be recovered in plaintext for the `secrets.compare_digest` comparison in `auth_handler.py`. Hashing is one-way and would require rewriting the authentication flow. For credentials that need to be used as-is (API tokens, passwords passed to external systems), authenticated symmetric encryption is the correct primitive.
+
+The encryption key is read from `ENCRYPTION_KEY` in `.env` at startup. If the variable is missing or the key is malformed, the process refuses to start with an explicit error message.
+
+```
+app/infrastructure/
+├── encryption.py     ← Fernet key loading, encrypt(), decrypt()
+└── database.py       ← EncryptedString TypeDecorator, models
+```
 
 ---
 
@@ -97,7 +118,7 @@ erDiagram
 ```
 app/api/auth/
 ├── auth_routes.py    ← POST /auth/login
-└── auth_handler.py   ← issue_token(), decode_access_token()
+└── auth_handler.py   ← create_access_token(), decode_access_token()
 ```
 
 ### Login Flow
@@ -614,7 +635,7 @@ helm binary (rc=1, stderr="release not found")
 app/api/routes/admin_routes.py
 ```
 
-Protected by the `master-key` header, verified against `ADMIN_MASTER_KEY` in `.env`. This key is checked on every request via a FastAPI dependency — no session or token is issued.
+Protected by the `X-Admin-Key` header, verified against `ADMIN_MASTER_KEY` in `.env`. This key is checked on every request via a FastAPI dependency — no session or token is issued.
 
 ### Cluster Registration Flow
 
@@ -625,7 +646,7 @@ sequenceDiagram
     participant DB as Database
 
     Admin->>Route: multipart/form-data<br/>id, name, host, ca_file (PEM)
-    Route->>Route: verify master-key header
+    Route->>Route: verify X-Admin-Key header
     Route->>Route: read ca_file bytes<br/>decode UTF-8<br/>validate "BEGIN CERTIFICATE"
     Route->>DB: ClusterModel(id=id.upper(), ...)<br/>db.merge() — upsert semantics
     DB-->>Route: committed
