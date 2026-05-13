@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Header, Depends, UploadFile, File,
 from app.infrastructure.database import SessionLocal, ClusterModel, ProfileModel
 from app.api.schemas.cluster_schema import ProfileCreate
 from app.api.dependencies.get_admin_key import require_admin_key
-from app.infrastructure.cluster_scanner import scan_all_clusters
+from app.core.fleet_manager import FleetManager
 from typing import Optional
 import os
 
@@ -154,6 +154,8 @@ async def update_cluster(
 @admin_router.patch("/profiles/{profile_id}", dependencies=[Depends(require_admin_key)])
 async def update_profile(
     profile_id: int, 
+    name: Optional[str] = Body(None),            # <--- AGGIUNGI QUESTO
+    cluster_id: Optional[str] = Body(None),      # <--- AGGIUNGI QUESTO (opzionale)
     gateway_password: Optional[str] = Body(None),
     k8s_token: Optional[str] = Body(None)
 ):
@@ -163,20 +165,31 @@ async def update_profile(
         if not profile:
             raise HTTPException(status_code=404, detail="Profile not found")
 
+        # Aggiorna i campi solo se presenti nella richiesta
+        if name: profile.name = name
+        if cluster_id: profile.cluster_id = cluster_id.upper()
         if gateway_password: profile.gateway_password = gateway_password
         if k8s_token: profile.k8s_token = k8s_token
 
         db.commit()
-        return {"message": f"Profile {profile_id} updated"}
+        return {"message": f"Profile {profile_id} updated successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
 
-# --- NUOVO ENDPOINT GLOBAL HEALTH ---
-@admin_router.get("/fleet/status", dependencies=[Depends(require_admin_key)] )
-async def get_fleet_status():
+
+@admin_router.get("/fleet/status", dependencies=[Depends(require_admin_key)])
+async def get_fleet_status(refresh: bool = False):
     """
-    Raccoglie lo stato di salute di tutti i cluster registrati.
-    Accessibile solo tramite X-Admin-Key.
+    Restituisce lo stato della flotta. 
+    Se refresh=true, forza una scansione immediata (lenta),
+    altrimenti restituisce la cache (istantanea).
     """
-    results = await scan_all_clusters()
-    return results
+    if refresh:
+        # Forza scan reale se l'admin preme un tasto "Refresh" dedicato
+        return await scan_all_clusters()
+    
+    # Restituisce i dati pronti in memoria
+    return FleetManager.get_cached_status()

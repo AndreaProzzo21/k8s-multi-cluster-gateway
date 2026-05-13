@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import asyncio
 
 # Import interni
 from app.core.exceptions import K8sBaseException
@@ -12,6 +13,7 @@ from app.api.routes.helm_routes import router as helm_router
 from app.api.auth.auth_route import auth_router
 from app.api.routes.admin_routes import admin_router
 from app.infrastructure.database import init_db
+from app.core.fleet_manager import FleetManager
 
 # Configurazione Logging
 logging.basicConfig(level=logging.INFO)
@@ -24,8 +26,13 @@ async def lifespan(app: FastAPI):
     Sostituisce i vecchi eventi startup/shutdown.
     """
     logger.info("Avvio K8S Digital Twin Gateway...")
+    
     # Inizializzazione DB (es. creazione tabelle se non esistono)
     init_db()
+
+    # --- AVVIO OBSERVER IN BACKGROUND ---
+    # Usiamo create_task per non bloccare l'avvio del server
+    asyncio.create_task(FleetManager.start_observer(interval_seconds=30))
     yield
     logger.info("Spegnimento Gateway...")
 
