@@ -15,6 +15,12 @@ This gateway is a self-hosted web platform that acts as an authenticated proxy b
 
 The result is a team-friendly control plane where access is managed through profiles, revocation is instant, and the blast radius of a stolen JWT is limited to what the gateway exposes — not direct cluster access.
 
+### Who is it for?
+
+- **DevOps Teams**: Manage access to multiple clusters (Prod, Staging, Dev) behind a protected VPN without sharing sensitive config files.
+- **K8s Enthusiasts**: An easy, lightweight web interface to monitor and manage home labs or personal clusters without the complexity of heavy enterprise tools.
+- **Edge & Digital Twin Developers**: Ideal for industrial contexts where you need to deploy "Digital Twins" or specific workloads to Edge nodes located near a factory. Just upload your Helm package via the ZIP feature to distribute applications globally with one click.
+
 **Two integrated consoles:**
 
 - **K8s Console** — real-time visibility and operations: namespaces, pods, deployments, services, ingresses, RBAC, storage, events.
@@ -132,9 +138,77 @@ sequenceDiagram
 
 ---
 
-## Admin API
+# Kubernetes Multi-Cluster Access Gateway
 
-Cluster and profile management is protected by a master key sent in the `X-Admin-Key` HTTP header. This API is intended for platform administrators only and is only exposed through the frontend through a dedicated console.
+> A zero-knowledge, multi-tenant Kubernetes management platform. Credentials never leave the server — users get access, not keys.
+
+[![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green?logo=fastapi)](https://fastapi.tiangolo.com)
+[![Docker](https://img.shields.io/badge/Docker-Compose-blue?logo=docker)](https://docker.com)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.25+-blue?logo=kubernetes)](https://kubernetes.io)
+[![Helm](https://img.shields.io/badge/Helm-3.x-blue?logo=helm)](https://helm.sh)
+
+---
+
+## What is this platform?
+
+This gateway is a self-hosted web platform that acts as an authenticated proxy between your users and your Kubernetes clusters. Instead of distributing `kubeconfig` files or Service Account tokens, the platform issues short-lived JWTs that contain **no Kubernetes credentials**. Every real credential — SA token, CA certificate — lives exclusively in the server-side database and is injected per-request, invisible to the client.
+
+The result is a team-friendly control plane where access is managed through profiles, revocation is instant, and the blast radius of a stolen JWT is limited to what the gateway exposes — not direct cluster access.
+
+### Who is it for?
+
+- **DevOps Teams**: Manage access to multiple clusters (Prod, Staging, Dev) behind a protected VPN without sharing sensitive config files.
+- **K8s Enthusiasts**: An easy, lightweight web interface to monitor and manage home labs or personal clusters without the complexity of heavy enterprise tools.
+- **Edge & Digital Twin Developers**: Ideal for industrial contexts where you need to deploy "Digital Twins" or specific workloads to Edge nodes located near a factory. Just upload your Helm package via the ZIP feature to distribute applications globally with one click.
+
+**Two integrated consoles:**
+
+- **K8s Console** — real-time visibility and operations: namespaces, pods, deployments, services, RBAC, storage, events.
+- **Helm Console** — application lifecycle management: install charts from repositories or ZIP uploads, inspect history, rollback, lint before deploying.
+
+---
+
+## Core Design Principles
+
+**Zero-knowledge client side.** The browser JWT contains only `cluster_id` and `profile`. The Kubernetes SA token and CA certificate are fetched server-side from the database on every authenticated request and discarded after use.
+
+**Stateless architecture.** The gateway holds no session state. Each request is fully self-contained: verify JWT → fetch credentials from DB → build scoped K8s client → forward request → discard client.
+
+**K8s enforces authorization.** The gateway delegates all resource-level access control to Kubernetes RBAC. A restricted Service Account will receive `403` from the cluster; the gateway propagates it to the frontend. No shadow permission system.
+
+---
+
+### Granular Access Control & RBAC
+
+The Gateway is designed to be a transparent proxy for Kubernetes RBAC. This means you have **absolute freedom** in defining the power of each Profile.
+
+* **Full Admin Access**: Use a `cluster-admin` Service Account to manage the entire fleet, monitor nodes, and handle global configurations.
+* **Namespace-Restricted**: Create a Service Account limited to a single namespace (e.g., `development`). The user will be able to see and manage only that namespace; any attempt to access other resources will be blocked by Kubernetes and reported as `403 Unauthorized` by the Gateway.
+* **Read-Only Auditor**: Provide a token with only `get` and `list` permissions. The UI will automatically prevent or fail any "Write" operations (like scaling or deleting pods).
+
+**The Gateway ensures that:**
+
+1. **Backend Integrity**: Every request is signed server-side with the specific token of the profile. There is no way for a user to "escalate" privileges within the Gateway.
+2. **Frontend Consistency**: The UI propagates Kubernetes errors. If a Service Account cannot list Pods, the dashboard will gracefully show an unauthorized message, keeping the system secure and consistent with your cluster's security posture.
+
+### Pro-Tip: The "Admin" Convention
+
+While you can create profiles with **any permissions**, the background **Fleet Observer** (Global Health) specifically looks for a profile named `admin`, `gateway-admin`, or `cluster-admin` to collect infrastructure metrics.
+*To get the most out of the Admin Console, ensure at least one profile with these names has `cluster-reader` or `cluster-admin` privileges.*
+
+---
+
+## Admin Console & API
+
+The platform infrastructure (Clusters and Profiles) is managed through a **dedicated Admin Console**.
+
+- **Access**: `http://localhost/admin.html`
+- **Authentication**: Requires the `ADMIN_MASTER_KEY` defined in your `.env` file.
+- **Features**: Register new clusters, manage access profiles, and monitor the **Global Fleet Health** (real-time status of all connected clusters).
+
+### API Reference
+Cluster and profile management is protected by a master key sent in the `X-Admin-Key` HTTP header.
 
 ```
 Base path: /api/v1/admin
@@ -174,7 +248,7 @@ curl -X POST http://localhost:8000/api/v1/admin/clusters \
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/admin/profiles \
-  -H "master-key: your-admin-key" \
+  -H "X-Admin-Key: your-admin-key" \
   -H "Content-Type: application/json" \
   -d '{
     "cluster_id": "MY-CLUSTER",
@@ -210,7 +284,7 @@ k8s-cloud-gateway/
 │       │   ├── routes/
 │       │   |   ├── k8s_routes.py            # K8s resource endpoints
 │       │   |   ├── helm_routes.py           # Helm endpoints
-│       │   |   └── admin_routes.py          # Cluster & profile registry
+│       │   |   └── admin_routes.py          # Cluster & profile management and overview
 |       |   |__ api_server.py                # API init and settings
 |       |
 │       ├── core/
@@ -219,6 +293,7 @@ k8s-cloud-gateway/
 |       |   ├── registry.py
 │       │   └── exceptions.py
 │       └── infrastructure/
+|           ├── cluster_scanner.py          # Provide Global Health Check (admin endpoint)
 |           ├── encryption.py                # Encryption of ca, password and SA token 
 │           ├── k8s_factory.py               # Authenticated K8s client builder
 │           ├── helm_kubeconfig.py           # Temp kubeconfig context manager
@@ -228,6 +303,7 @@ k8s-cloud-gateway/
 │   ├── index.html                           # Login
 │   ├── dashboard.html                       # K8s Console
 │   ├── helm.html                            # Helm Console
+│   ├── admin.html                            # Admin Console
 │   └── assets/
 │       ├── css/style.css
 │       └── js/
@@ -250,9 +326,9 @@ k8s-cloud-gateway/
 
 ### Prerequisites
 
-- Docker and Docker Compose
-- One or more Kubernetes clusters with Service Accounts and their tokens
-- The CA certificate of each cluster (PEM format)
+- **Docker and Docker Compose**: The platform is fully containerized.
+- **Network Connectivity**: The Gateway container **must** be able to reach the **Kubernetes API Server** of your clusters (typically on port 6443). Ensure firewalls or VPNs allow this traffic.
+- **K8s Credentials**: One or more Kubernetes clusters with Service Accounts tokens and their CA certificates (PEM format).
 
 ### Quick Start
 
@@ -261,9 +337,8 @@ k8s-cloud-gateway/
 git clone https://github.com/AndreaProzzo21/k8s-cloud-gateway.git
 cd k8s-cloud-gateway
 
-# 2. Configure environment
+# 2. Configure environment (see section below)
 cp .env.example .env
-# Fill in JWT_SECRET_KEY and ADMIN_MASTER_KEY with strong random strings
 
 # 3. Start the stack
 docker compose up --build -d
@@ -277,12 +352,16 @@ open http://localhost:80
 ### Environment Variables
 
 ```dotenv
+# Port through which expose the FastAPI backend (default: 8000)
+GATEWAY_PORT=
+
 # JWT signing key — use a long random string, keep it secret
 JWT_SECRET_KEY=
 # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
 
-# JWT signing algorithm
+# JWT signing algorithm and expire hours (default: 1)
 JWT_SECRET_ALGORITHM=HS256
+JWT_EXPIRE_HOURS=
 
 # Master key for the admin API — protect this carefully
 ADMIN_MASTER_KEY=
@@ -348,7 +427,6 @@ volumes:
 | Topic | Current state | Roadmap |
 |---|---|---|
 | JWT storage | `localStorage` | Migrate to `HttpOnly` cookies |
-| DB credentials at rest | Plaintext in SQLite | AES-256 encryption for `k8s_token` and `password_hash` |
 | Authorization | Delegated to K8s RBAC | Optional namespace allowlist per profile |
 | Helm kubeconfig | Temp file `0600`, deleted after request | ✅ Done |
 | CA certificate | Written to `/tmp` once per cluster, cached | ✅ Done |
@@ -365,7 +443,6 @@ Available at [`http://localhost:8000/docs`](http://localhost:8000/docs) when the
 ## Roadmap
 
 - [ ] `HttpOnly` cookie-based JWT storage to mitigate XSS
-- [ ] AES-256 encryption for sensitive database columns
 - [ ] Namespace allowlist per profile (enforced server-side before reaching K8s)
 - [ ] WebSocket streaming for real-time pod logs
 - [ ] Multi-user audit log
