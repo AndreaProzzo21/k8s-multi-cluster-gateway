@@ -6,3 +6,4 @@ backend/debug_factory.py
 backend/tests
 backend/pytest.ini
 docker-compose.test.yml
+migrate_encrypt.py
