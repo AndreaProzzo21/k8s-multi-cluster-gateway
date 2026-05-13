@@ -38,8 +38,8 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="K8S Digital Twin Gateway",
-        description="API Proxy Stateless per la gestione multi-cluster via JWT",
+        title="K8S Cloud Gateway",
+        description="API Proxy Stateless per la gestione multi-cluster via RBAC",
         version="2.0.0",
         lifespan=lifespan
     )
