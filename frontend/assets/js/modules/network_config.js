@@ -1,5 +1,7 @@
 async function loadServices() {
     currentView = 'services';
+    renderLabelFilter(false); // <--- MOSTRA IL FILTRO
+    
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     
@@ -52,6 +54,7 @@ async function loadServices() {
 
 async function loadConfigMaps() {
     currentView = 'configmaps';
+    renderLabelFilter(false);
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     resArea.innerHTML = '<div style="text-align:center"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
@@ -95,6 +98,7 @@ async function loadConfigMaps() {
 
 async function loadSecrets() {
     currentView = 'secrets';
+    renderLabelFilter(false);
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     resArea.innerHTML = '<div style="text-align:center"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
@@ -141,6 +145,7 @@ async function loadSecrets() {
 
 async function loadIngress() {
     currentView = 'ingress';
+    renderLabelFilter(false);
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     

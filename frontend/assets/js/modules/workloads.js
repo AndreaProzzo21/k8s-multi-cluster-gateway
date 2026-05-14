@@ -1,9 +1,11 @@
 async function loadPods() {
     currentView = 'pods';
+    renderLabelFilter(true);
+    
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     
-    // Recupero filtro dall'input globale
+    // Recupero filtro (ora l'elemento esiste sicuramente perché chiamato sopra)
     const labelSelector = document.getElementById('labelFilter')?.value || '';
     let url = `/namespaces/${ns}/pods`;
     if (labelSelector) url += `?label_selector=${encodeURIComponent(labelSelector)}`;
@@ -62,9 +64,12 @@ async function loadPods() {
 }
 async function loadDeployments() {
     currentView = 'deployments';
+    renderLabelFilter(true); // <--- MOSTRA IL FILTRO
+    
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     
+    // Recupero filtro (ora l'elemento esiste sicuramente perché chiamato sopra)
     const labelSelector = document.getElementById('labelFilter')?.value || '';
     let url = `/namespaces/${ns}/deployments`;
     if (labelSelector) url += `?label_selector=${encodeURIComponent(labelSelector)}`;
@@ -116,20 +121,26 @@ async function loadDeployments() {
 }
 
 async function restartDeploy(name) {
-    if(!confirm(`Riavviare il deployment ${name}?`)) return;
+    const confirmed = await showConfirm(
+        "Confirm Restart", 
+        `Are you sure you want to restart <strong>${name}</strong>?`,
+        true // Imposta il tasto rosso per azioni pericolose
+    );
+    if (!confirmed) return;
     try {
         await apiCall(`/namespaces/${window.currentNamespace}/deployments/${name}/restart`, 'POST');
+        showSuccess("Deployment successfully restarted")
         loadDeployments();
-    } catch (err) { alert(err.message); }
+    } catch (err) { showError(err.message); }
 }
 
 async function scaleDeploy(name, current) {
-    const n = prompt("Replicas:", current);
+    const n = await showPrompt("Current Replicas:", current);
     if (n === null) return;
     try {
         await apiCall(`/namespaces/${window.currentNamespace}/deployments/${name}/scale?replicas=${n}`, 'PATCH');
         loadDeployments();
-    } catch (err) { alert(err.message); }
+    } catch (err) { showError(err.message); }
 }
 
 async function viewLogs(name, btn) {
@@ -161,7 +172,7 @@ async function viewLogs(name, btn) {
         document.getElementById(`pre-${name}`).textContent = logs || "No logs available.";
         
     } catch (err) {
-        alert("Error: " + err.message);
+        showError(err.message)
         document.getElementById(`logs-${name}`)?.remove();
     }
 }
@@ -317,42 +328,48 @@ async function loadEvents() {
 
 
 async function deleteResource(type, name) {
-    if (!confirm(`Confermi l'eliminazione di ${type}: ${name}?`)) return;
+    const confirmed = await showConfirm(
+        "Confirm Deletion", 
+        `Are you sure you want to delete ${type} <strong>${name}</strong>? This action cannot be undone.`,
+        true // Imposta il tasto rosso per azioni pericolose
+    );
+
+    if (!confirmed) return;
 
     const ns = window.currentNamespace;
     const url = `/namespaces/${ns}/${type}/${name}`;
 
     try {
         await apiCall(url, 'DELETE'); 
-        alert(`${type} '${name}' successfully deleted.`);
+        showSuccess(`${type} '${name}' successfully deleted.`);
 
         refreshCurrentView(); 
         
     } catch (err) {
-        if (err.message == "RESTRICTED") {
-            alert(`Error in deleting ${name}: RESTRICTED ACCESS 403 `);
+            showError(err.message);
         }
-        else{
-            alert(`Error in deleting ${name}: ${err}`);
-        }
-    }
+    
 }
 
 async function deleteNamespace(name) {
     // 1. Protezione per i namespace di sistema
     const protectedNamespaces = ['default', 'kube-system', 'kube-public', 'kube-node-lease', 'kube-flannel'];
     if (protectedNamespaces.includes(name)) {
-        alert(`Errore: Il namespace '${name}' è una risorsa di sistema e non può essere eliminato dal Gateway.`);
+        showError(`Errore: Il namespace '${name}' è una risorsa di sistema e non può essere eliminato dal Gateway.`);
         return;
     }
 
     // 2. Doppia conferma (l'eliminazione di un NS cancella TUTTO ciò che contiene)
-    const confirmFirst = confirm(`Attenzione! L'eliminazione del namespace '${name}' cancellerà permanentemente tutti i Pod, Service e risorse contenuti in esso. Confermi?`);
-    if (!confirmFirst) return;
+    const confirmed = await showConfirm(
+        "Confirm Deletion", 
+        `Are you sure you want to delete <strong>${name}</strong>? This action cannot be undone.`,
+        true // Imposta il tasto rosso per azioni pericolose
+    );
+    if (!confirmed) return;
 
-    const confirmSecond = prompt(`Per confermare l'eliminazione definitiva, scrivi il nome del namespace (${name}):`);
+    const confirmSecond = await showPrompt('Confirm',`To definitely delete the namespace type the name: (${name}):`);
     if (confirmSecond !== name) {
-        alert("Nome non corrispondente. Operazione annullata.");
+        showError("Names do not correspond. Namespace not deleted");
         return;
     }
 
@@ -360,28 +377,25 @@ async function deleteNamespace(name) {
         // L'URL corretto per un namespace è globale: /namespaces/{name}
         await apiCall(`/namespaces/${name}`, 'DELETE');
         
-        alert(`Il processo di eliminazione per '${name}' è iniziato. Potrebbe apparire come 'Terminating' per qualche istante.`);
+        showSuccess(`Il processo di eliminazione per '${name}' è iniziato. Potrebbe apparire come 'Terminating' per qualche istante.`);
         
         // Ricarichiamo la lista dei namespace
         await loadNamespace();
         
     } catch (err) {
-        if (err.message === "RESTRICTED") {
-            alert(`Errore: Accesso negato (403). Non hai i permessi per eliminare namespace.`);
-        } else {
-            alert(`Errore durante l'eliminazione di ${name}: ${err.message}`);
-        }
+        showError(err.message);
+      
     }
 }
 
 async function loadStatefulSets() {
     currentView = 'statefulsets';
+    renderLabelFilter(true);
+    
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     
-    // Assicuriamoci che i controlli siano visibili
-    document.getElementById('controlsContainer').style.display = 'flex';
-
+    // Recupero filtro (ora l'elemento esiste sicuramente perché chiamato sopra)
     const labelSelector = document.getElementById('labelFilter')?.value || '';
     let url = `/namespaces/${ns}/statefulsets`;
     if (labelSelector) url += `?label_selector=${encodeURIComponent(labelSelector)}`;

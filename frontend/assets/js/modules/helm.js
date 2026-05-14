@@ -372,14 +372,26 @@ async function viewReleaseValues(name) {
 // ---------------------------------------------------------------------------
 
 async function confirmUninstall(name) {
-    if (!confirm(`Uninstall release "${name}" from namespace "${window.currentNamespace}"?\n\nThis will remove all Kubernetes resources managed by this release.`)) return;
+    // 1. Chiediamo conferma con il nuovo modal professionale
+    const confirmed = await showConfirm(
+        "Uninstall Helm Release", 
+        `Are you sure you want to uninstall the release <strong>${name}</strong>?<br>This will remove all managed resources in <strong>${window.currentNamespace}</strong>.`,
+        true 
+    );
+    if (!confirmed) return;
 
-    const keepHistory = confirm(`Keep release history for future rollbacks?`);
+    // 2. Scelta sulla History (BLU/NEUTRO)
+    // Non è un'azione pericolosa, quindi isDanger = false
+    const keepHistory = await showConfirm(
+        "Keep History?", 
+        "Do you want to <strong>keep the release history</strong>? Keeping history allows you to rollback to this version later.",
+        false 
+    );
 
     try {
         const ns = window.currentNamespace;
         const result = await _helmDelete(`/helm/namespaces/${ns}/releases/${name}`, { keep_history: keepHistory });
-        alert(`Release "${name}" successfully uninstalled.`);
+        showSuccess(`Release "${name}" successfully uninstalled.`);
         loadReleases();
     } catch (err) {
         showError(err.message);
@@ -392,7 +404,12 @@ async function confirmUninstall(name) {
 // ---------------------------------------------------------------------------
 
 async function confirmRollback(name, revision) {
-    if (!confirm(`Rollback release "${name}" to revision ${revision}?`)) return;
+    const confirmed = await showConfirm(
+        "Confirm Rollback", 
+        `Rollback release ${name} to revision ${revision}?`,
+        true // Imposta il tasto rosso per azioni pericolose
+    );
+    if (!confirmed) return;
 
     try {
         const ns = window.currentNamespace;
@@ -615,12 +632,12 @@ async function executeInstall(chartRef) {
     const wait        = document.getElementById('inst_wait')?.checked;
     const valuesRaw   = document.getElementById('inst_values')?.value?.trim();
 
-    if (!releaseName) { alert("Release name is required."); return; }
+    if (!releaseName) { showError("Release name is required."); return; }
 
     let values = null;
     if (valuesRaw) {
         try { values = JSON.parse(valuesRaw); }
-        catch { alert("Invalid JSON in Values Override field."); return; }
+        catch { showError("Invalid JSON in Values Override field."); return; }
     }
 
     const btn = document.querySelector('#install-form-panel .btn-action');
@@ -724,13 +741,13 @@ async function executeZipDeploy() {
     const valuesRaw   = document.getElementById('zip_values')?.value?.trim();
     const resultDiv   = document.getElementById('zip-result');
 
-    if (!releaseName) { alert("Release name is required."); return; }
-    if (!fileInput.files[0]) { alert("Please select a ZIP file."); return; }
+    if (!releaseName) { showError("Release name is required."); return; }
+    if (!fileInput.files[0]) { showError("Please select a ZIP file."); return; }
 
     let valuesJson = null;
     if (valuesRaw) {
         try { JSON.parse(valuesRaw); valuesJson = valuesRaw; }
-        catch { alert("Invalid JSON in Values Override field."); return; }
+        catch { showError("Invalid JSON in Values Override field."); return; }
     }
 
     const btn = document.getElementById('zipDeployBtn');
@@ -946,7 +963,7 @@ async function lintZipChart() {
     const fileInput = document.getElementById('zipFileInput');
     const resultDiv = document.getElementById('zip-result');
 
-    if (!fileInput?.files[0]) { alert("Select a ZIP file first."); return; }
+    if (!fileInput?.files[0]) { showError("Select a ZIP file first."); return; }
 
     const btn = document.getElementById('btnLintZip');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Linting...'; }

@@ -1,5 +1,6 @@
 async function loadServiceAccounts() {
     currentView = 'serviceaccounts';
+    renderLabelFilter(false);
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     try {
@@ -32,6 +33,7 @@ async function loadServiceAccounts() {
 
 async function loadRoles() {
     currentView = 'roles';
+    renderLabelFilter(false);
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     try {
@@ -63,6 +65,7 @@ async function loadRoles() {
 
 async function loadRoleBindings() {
     currentView = 'rolebindings';
+    renderLabelFilter(false);
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     try {

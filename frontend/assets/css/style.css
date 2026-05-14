@@ -32,7 +32,7 @@
 html, body { height: 100%; }
 
 body {
-    font-family: 'Sora', -apple-system, sans-serif;
+    font-family: 'Inter', sans-serif; /* Sostituisci qui */
     background: var(--bg-light);
     margin: 0;
     color: var(--text-main);
@@ -41,6 +41,173 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+/* Container per i messaggi (Toast) */
+#toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toast {
+    min-width: 300px;
+    background: white;
+    border-left: 4px solid var(--accent);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: toastSlideIn 0.3s ease-out forwards;
+    cursor: pointer;
+}
+
+.toast.error { border-left-color: var(--danger); }
+.toast.success { border-left-color: var(--success); }
+.toast.warning { border-left-color: var(--warning); }
+
+.toast i { font-size: 1.2rem; }
+.toast.error i { color: var(--danger); }
+.toast.success i { color: var(--success); }
+
+.toast-content {
+    flex-grow: 1;
+}
+
+.toast-title {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--text-main);
+    display: block;
+}
+
+.toast-message {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: block;
+}
+
+@keyframes toastSlideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toastFadeOut {
+    to { transform: translateX(100%); opacity: 0; }
+}
+
+/* Overlay per oscurare lo sfondo */
+#modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 30, 61, 0.4);
+    backdrop-filter: blur(4px);
+    display: none; /* Nascosto di default */
+    align-items: center;
+    justify-content: center;
+    z-index: 11000;
+}
+
+/* Box del Modal */
+.confirm-modal {
+    background: white;
+    width: 100%;
+    max-width: 400px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 1.5rem;
+    animation: modalScaleIn 0.2s ease-out;
+}
+
+.confirm-modal h3 {
+    font-size: 1.1rem;
+    color: var(--text-main);
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.confirm-modal p {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+    line-height: 1.4;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+@keyframes modalScaleIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+/* Stile base per i bottoni del modal */
+.modal-footer button {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid transparent;
+}
+
+/* Pulsante CANCEL (Neutro e discreto) */
+.btn-modal-cancel {
+    background: #fff;
+    color: var(--text-muted);
+    border-color: var(--border) !important;
+}
+
+.btn-modal-cancel:hover {
+    background: #f8fafc;
+    color: var(--text-main);
+    border-color: var(--border-strong) !important;
+}
+
+/* Pulsante CONFIRM / SAVE (Brand color) */
+.btn-modal-primary {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 4px 12px rgba(50, 108, 229, 0.2);
+}
+
+.btn-modal-primary:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(50, 108, 229, 0.3);
+}
+
+/* Pulsante DANGER (Per eliminazioni/azioni critiche) */
+.btn-modal-danger {
+    background: var(--danger);
+    color: white;
+    box-shadow: 0 4px 12px rgba(229, 53, 53, 0.2);
+}
+
+.btn-modal-danger:hover {
+    background: #c81e1e;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(229, 53, 53, 0.3);
+}
+
+/* Effetto pressione attiva */
+.modal-footer button:active {
+    transform: translateY(0);
+}
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

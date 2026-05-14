@@ -242,12 +242,148 @@ resArea.innerHTML = `
     </div>`;
 }
 
-function showError(msg) {
-if (msg === "RESTRICTED") {
-    renderRestrictedAccess();
-} else {
-    alert("ERROR:\n" + msg);
+/**
+ * Sostituisce il vecchio alert() con una notifica Toast non bloccante.
+ * @param {string|Error} message - Il messaggio o l'oggetto errore
+ * @param {string} type - 'error', 'success', 'warning' (default: error)
+ */
+function showError(message, type = 'error') {
+    // 1. Assicuriamoci che esista il container
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    // 2. Creiamo il toast
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    // Icona in base al tipo
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+    const title = type === 'success' ? 'Success' : 'Error Detected';
+    
+    // Gestione del messaggio (se è un oggetto Error prendiamo .message)
+    const displayMsg = message instanceof Error ? message.message : message;
+
+    toast.innerHTML = `
+        <i class="fas ${icon}"></i>
+        <div class="toast-content">
+            <span class="toast-title">${title}</span>
+            <span class="toast-message">${displayMsg}</span>
+        </div>
+    `;
+
+    // 3. Click per chiudere subito
+    toast.onclick = () => removeToast(toast);
+
+    // 4. Aggiungiamo al container
+    container.appendChild(toast);
+
+    // 5. Auto-rimozione dopo 5 secondi
+    setTimeout(() => removeToast(toast), 5000);
 }
+
+function removeToast(toast) {
+    toast.style.animation = 'toastFadeOut 0.3s ease-in forwards';
+    toast.addEventListener('animationend', () => toast.remove());
+}
+
+// Shortcut per messaggi di successo (opzionale)
+function showSuccess(msg) {
+    showError(msg, 'success');
+}
+
+/**
+ * Sostituisce il confirm() nativo.
+ * Ritorna una Promise che risolve a true (Sì) o false (No).
+ */
+function showConfirm(title, message, isDanger = false) {
+    return new Promise((resolve) => {
+        // Creiamo o recuperiamo l'overlay
+        let overlay = document.getElementById('modal-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'modal-overlay';
+            document.body.appendChild(overlay);
+        }
+
+        overlay.style.display = 'flex';
+
+        overlay.innerHTML = `
+            <div class="confirm-modal">
+                <h3><i class="fas ${isDanger ? 'fa-exclamation-triangle' : 'fa-question-circle'}" 
+                       style="color:${isDanger ? 'var(--danger)' : 'var(--accent)'}"></i> 
+                    ${title}
+                </h3>
+                <p>${message}</p>
+                <div class="modal-footer">
+                    <button class="btn-modal-cancel" id="confirm-no">Cancel</button>
+                    <button class="${isDanger ? 'btn-modal-danger' : 'btn-modal-primary'}" id="confirm-yes" style="padding: 8px 20px;">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // Gestione pulsanti
+        document.getElementById('confirm-yes').onclick = () => {
+            overlay.style.display = 'none';
+            resolve(true);
+        };
+        document.getElementById('confirm-no').onclick = () => {
+            overlay.style.display = 'none';
+            resolve(false);
+        };
+    });
+}
+
+/**
+ * Sostituisce il prompt() nativo.
+ * Ritorna una Promise che risolve alla stringa inserita o null se annullato.
+ */
+function showPrompt(title, message, defaultValue = '') {
+    return new Promise((resolve) => {
+        let overlay = document.getElementById('modal-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'modal-overlay';
+            document.body.appendChild(overlay);
+        }
+
+        overlay.style.display = 'flex';
+
+        overlay.innerHTML = `
+            <div class="confirm-modal">
+                <h3><i class="fas fa-edit" style="color:var(--accent)"></i> ${title}</h3>
+                <p>${message}</p>
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <input type="text" id="prompt-input" value="${defaultValue}" 
+                           style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); font-family:inherit;">
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-modal-cancel" id="prompt-cancel">Cancel</button>
+                    <button class="btn-modal-primary" id="prompt-ok" style="padding: 8px 20px;">Ok</button>
+                </div>
+            </div>
+        `;
+
+        const input = document.getElementById('prompt-input');
+        input.focus();
+        // Permette di premere invio invece di cliccare Save
+        input.onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('prompt-ok').click(); };
+
+        document.getElementById('prompt-ok').onclick = () => {
+            const val = input.value;
+            overlay.style.display = 'none';
+            resolve(val);
+        };
+        document.getElementById('prompt-cancel').onclick = () => {
+            overlay.style.display = 'none';
+            resolve(null);
+        };
+    });
 }
 
 function renderLabels(labelsObj) {
@@ -288,4 +424,36 @@ function showApplyForm() {
             <button onclick="executeApply()" class="btn-action" style="width:100%; margin-top:15px;">Run Apply</button>
             <div id="applyReport" style="margin-top:20px;"></div>
         </div>`;
+}
+
+function renderLabelFilter(visible = false) {
+    const area = document.getElementById('dynamicControlsArea');
+    if (!visible) {
+        area.innerHTML = '';
+        return;
+    }
+
+    // Se è già presente, non lo sovrascrivere (per non perdere il focus mentre scrivi)
+    if (document.getElementById('labelFilter')) return;
+
+    area.innerHTML = `
+        <div style="position: relative; display: flex; align-items: center; gap: 5px;">
+            <i class="fas fa-info-circle" 
+               style="color: var(--accent); cursor: help;" 
+               onclick="document.getElementById('filterHelp').classList.toggle('show')"></i>
+            
+            <div id="filterHelp" class="info-tooltip">
+                <strong>K8s Label Selectors:</strong>
+                <ul>
+                    <li><code>app=web</code> : Exact match</li>
+                    <li><code>app=web,env=prod</code> : Multiple (AND)</li>
+                    <li><code>app!=web</code> : Exclusion</li>
+                </ul>
+            </div>
+            
+            <input type="text" id="labelFilter" placeholder="Filter by label..." 
+                style="width: 180px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.8rem;"
+                onkeydown="if(event.key==='Enter') refreshCurrentView()">
+        </div>
+    `;
 }
