@@ -123,20 +123,21 @@
                     <i class="fas fa-info-circle" 
                     style="color: var(--accent); cursor: help;" 
                     onclick="document.getElementById('filterHelp').classList.toggle('show')"></i>
+
+                        <div id="filterHelp" class="info-tooltip">
+                            <strong>K8s Label Selectors:</strong>
+                            <ul>
+                                <li><code>app=web</code> : Exact match (AND)</li>
+                                <li><code>app=web,env=prod</code> : Multiple labels (AND)</li>
+                                <li><code>app!=web</code> : Exclusion</li>
+                                <li><code>app in (web, api)</code> : One of these (OR)</li>
+                                <li><code>app notin (db)</code> : Not in these</li>
+                            </ul>
+                        </div>
                     
                     <input type="text" id="labelFilter" placeholder="Filter by label..." 
                         style="width: 200px; padding: 8px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.8rem;">
                     
-                    <div id="filterHelp" class="info-tooltip">
-                        <strong>K8s Label Selectors:</strong>
-                        <ul>
-                            <li><code>app=web</code> : Exact match (AND)</li>
-                            <li><code>app=web,env=prod</code> : Multiple labels (AND)</li>
-                            <li><code>app!=web</code> : Exclusion</li>
-                            <li><code>app in (web, api)</code> : One of these (OR)</li>
-                            <li><code>app notin (db)</code> : Not in these</li>
-                        </ul>
-                    </div>
                 </div>
 
                 <button onclick="refreshCurrentView()" class="scale-btn">Refresh</button>

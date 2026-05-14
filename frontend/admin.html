@@ -1,431 +1,997 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K8s Gateway - Cluster Admin Management</title>
+    <title>K8s Gateway — Admin Console</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* --- ADMIN LOGIN: IDENTICO ALLO STILE MAIN LOGIN --- */
-        /* Spinner Container centrato */
-        /* Spinner Container */
-        .loading-container {
+        /* ══════════════════════════════════════
+           DESIGN TOKENS — identici al css principale
+        ══════════════════════════════════════ */
+        :root {
+            --bg-light:       #f0f4fb;
+            --side-nav:       #ffffff;
+            --accent:         #326ce5;
+            --accent-soft:    #e8effd;
+            --accent-hover:   #2157cc;
+            --text-main:      #0f1e3d;
+            --text-muted:     #6272a0;
+            --card-bg:        #ffffff;
+            --success:        #0ea875;
+            --danger:         #e53535;
+            --warning:        #f0960a;
+            --border:         #dde4f0;
+            --border-strong:  #c2cde6;
+            --shadow:         0 1px 2px rgba(15,30,61,0.05), 0 4px 18px rgba(50,108,229,0.07);
+            --shadow-lg:      0 8px 36px rgba(50,108,229,0.13), 0 2px 8px rgba(15,30,61,0.06);
+            --radius:         10px;
+            --radius-sm:      6px;
+            --radius-lg:      16px;
+            --k8s-hex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='70'%3E%3Cpolygon points='30,2 58,17 58,53 30,68 2,53 2,17' fill='none' stroke='%23326ce5' stroke-width='0.8' stroke-opacity='0.07'/%3E%3C/svg%3E");
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+
+        body {
+            font-family: 'Sora', -apple-system, sans-serif;
+            background: var(--bg-light);
+            color: var(--text-main);
+            line-height: 1.55;
+            -webkit-font-smoothing: antialiased;
+            font-size: 14px;
+            overflow: hidden;
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a0aecf; }
+
+        /* ══════════════════════════════════════
+           LOGIN PAGE
+        ══════════════════════════════════════ */
+        #loginScreen {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 400px; /* Altezza per centrarlo bene nella pagina */
-            width: 100%;
+            min-height: 100vh;
+            background: var(--bg-light);
+            position: relative;
+            overflow: hidden;
         }
-
-        /* La ruotina blu */
-        .spinner {
-            width: 45px;
-            height: 45px;
-            border: 4px solid #e2e8f0; /* Grigio chiaro per la base */
-            border-top: 4px solid cornflowerblue; /* BLU per la parte rotante */
+        #loginScreen::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: var(--k8s-hex);
+            background-size: 60px 70px;
+            pointer-events: none;
+        }
+        #loginScreen::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 700px; height: 700px;
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-bottom: 20px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .loading-text {
-            color: #64748b;
-            font-size: 0.9rem;
-            font-weight: 600;
-            letter-spacing: 0.5px;
+            background: radial-gradient(circle, rgba(240,244,251,0) 0%, #f0f4fb 68%);
+            pointer-events: none;
         }
         .login-card {
-            padding: 1.5rem !important;
-            max-width: 360px !important;
-            margin: auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: var(--shadow-lg);
+            background: #fff;
+            padding: 3rem 3.5rem;
+            border-radius: 20px;
+            box-shadow: 0 0 0 1px rgba(50,108,229,0.12), 0 24px 64px rgba(50,108,229,0.12), 0 2px 8px rgba(15,30,61,0.06);
+            width: 100%;
+            max-width: 440px;
+            border: 1px solid var(--border);
+            position: relative;
+            z-index: 1;
         }
-        .auth-header {
-            margin-bottom: 1.5rem !important;
-            text-align: center;
+        .login-header { text-align: center; margin-bottom: 2.5rem; }
+        .login-logo-wrap {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 56px; height: 56px;
+            background: linear-gradient(135deg, #1a3a7a 0%, #326ce5 100%);
+            border-radius: 14px;
+            margin-bottom: 1rem;
+            box-shadow: 0 8px 24px rgba(50,108,229,0.28);
         }
-        .auth-logo {
-            width: 64px; height: 64px;
-            object-fit: contain;
-            margin-bottom: 0.5rem;
-            border-radius: 8px;
+        .login-logo-wrap i { color: white; font-size: 1.4rem; }
+        .login-header h1 { font-size: 1.55rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.03em; margin-bottom: 0.4rem; }
+        .login-header p { color: var(--text-muted); font-size: 0.875rem; }
+        .form-group { margin-bottom: 1.25rem; }
+        .form-group label {
+            display: block;
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
         }
+        .form-group input, .form-group select {
+            width: 100%;
+            background: #f5f8fe;
+            border: 1.5px solid var(--border);
+            padding: 12px 14px;
+            border-radius: var(--radius-sm);
+            color: var(--text-main);
+            font-size: 0.88rem;
+            font-family: inherit;
+            transition: all 0.18s;
+            outline: none;
+        }
+        .form-group input:focus, .form-group select:focus {
+            border-color: var(--accent);
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(50,108,229,0.11);
+        }
+        .form-group input::placeholder { color: #a0aecf; }
+        .login-error { color: var(--danger); font-size: 0.78rem; font-weight: 600; text-align: center; margin-top: 0.75rem; min-height: 1.2em; }
 
-        /* --- DASHBOARD FLEET: STILE AVANZATO --- */
-        .fleet-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); 
-            gap: 1.5rem; padding: 1rem; 
+        /* ══════════════════════════════════════
+           NAVBAR — identica alla dashboard
+        ══════════════════════════════════════ */
+        .navbar {
+            background: linear-gradient(100deg, #0c1a3a 0%, #163a7a 55%, #1e4db7 100%);
+            color: #fff;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 62px;
+            box-shadow: 0 2px 12px rgba(15,30,61,0.28), 0 1px 0 rgba(255,255,255,0.04);
+            position: relative;
+            z-index: 10;
+            flex-shrink: 0;
         }
-        .fleet-card { 
-            background: white; border: 1px solid var(--border); 
-            border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-sm);
+        .navbar::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent 0%, rgba(91,141,239,0.6) 40%, rgba(91,141,239,0.6) 60%, transparent 100%);
         }
-        .fleet-card-header { 
-            padding: 1rem; border-bottom: 1px solid var(--border); 
-            display: flex; justify-content: space-between; align-items: center; background: #f8fafc; 
+        .nav-brand {
+            font-weight: 800;
+            font-size: 13.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.20em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #fff;
         }
-        .fleet-card-body { padding: 1.25rem; }
+        .nav-brand i { color: #7eb3ff; }
+        .nav-right { display: flex; align-items: center; gap: 10px; }
+        .nav-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.15); }
+        .btn-nav {
+            background: rgba(255,255,255,0.10);
+            color: rgba(255,255,255,0.85);
+            border: 1px solid rgba(255,255,255,0.18);
+            padding: 6px 14px;
+            font-size: 0.75rem;
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.18s;
+            display: inline-flex; align-items: center; gap: 6px;
+            backdrop-filter: blur(6px);
+            white-space: nowrap;
+        }
+        .btn-nav:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.35); color: #fff; }
+        .btn-nav.accent { background: rgba(50,108,229,0.35); border-color: rgba(126,179,255,0.45); }
+        .btn-nav.accent:hover { background: rgba(50,108,229,0.55); box-shadow: 0 0 16px rgba(50,108,229,0.35); }
+        .btn-nav.danger:hover { background: rgba(229,53,53,0.18); color: #ff8080; border-color: rgba(229,53,53,0.35); }
 
-        /* Stats Widgets */
-        .stats-bar {
-            display: grid; grid-template-columns: repeat(3, 1fr);
-            gap: 10px; margin-bottom: 1.25rem;
-        }
-        .stat-item {
-            background: #f1f5f9; padding: 8px; border-radius: 8px; text-align: center;
-        }
-        .stat-label { font-size: 0.6rem; color: #64748b; font-weight: 700; text-transform: uppercase; }
-        .stat-value { font-size: 0.85rem; font-weight: 700; color: #1e293b; }
+        /* ══════════════════════════════════════
+           MAIN LAYOUT
+        ══════════════════════════════════════ */
+        #adminDashboard { display: none; height: 100vh; flex-direction: column; }
+        #adminDashboard.visible { display: flex; }
+        .main-container { display: flex; height: calc(100vh - 62px); overflow: hidden; }
 
-        /* Nodi Design Professionale */
-        .nodes-container { 
-            display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; 
+        /* ══════════════════════════════════════
+           SIDEBAR — identica alla dashboard
+        ══════════════════════════════════════ */
+        .sidebar {
+            width: 252px;
+            background: #fff;
+            border-right: 1px solid var(--border);
+            padding: 0 0.625rem 2rem 0.625rem;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow-y: auto;
+            flex-shrink: 0;
+            box-shadow: 2px 0 12px rgba(50,108,229,0.04);
         }
-        .node-item { 
-            background: #ffffff; border: 1px solid #e2e8f0; 
-            padding: 10px; border-radius: 10px; 
-            display: flex; align-items: center; gap: 10px; transition: border-color 0.2s;
+        .sidebar-section {
+            color: var(--accent);
+            font-size: 0.60rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.20em;
+            padding: 26px 16px 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
         }
-        .node-item:hover { border-color: var(--accent); }
-        .node-status-indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .node-info { display: flex; flex-direction: column; line-height: 1.3; }
-        .node-name { font-size: 0.75rem; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
-        .node-role { font-size: 0.65rem; color: #64748b; font-weight: 500; text-transform: uppercase; }
+        .sidebar-section::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, var(--accent-soft) 0%, transparent 100%);
+            margin-left: 6px;
+        }
+        .sidebar ul { list-style: none; padding: 0; margin: 0; margin-top: 2px; }
+        .sidebar li {
+            padding: 9px 12px;
+            cursor: pointer;
+            color: var(--text-muted);
+            margin-bottom: 1px;
+            transition: all 0.16s ease;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-weight: 500;
+            font-size: 0.82rem;
+        }
+        .sidebar li i { width: 15px; text-align: center; opacity: 0.65; transition: opacity 0.16s; color: var(--accent); }
+        .sidebar li:hover { background: var(--accent-soft); color: var(--accent); }
+        .sidebar li:hover i { opacity: 1; }
+        .sidebar li.active { background: var(--accent); color: #fff; font-weight: 600; box-shadow: 0 2px 10px rgba(50,108,229,0.28); }
+        .sidebar li.active i { opacity: 1; color: #fff; }
+        .sidebar-badge {
+            margin-left: auto;
+            font-size: 0.60rem;
+            font-weight: 700;
+            padding: 1px 7px;
+            border-radius: 10px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .badge-count { background: var(--accent-soft); color: var(--accent); }
+        .badge-new { background: #dcfce7; color: #166534; }
+        .badge-soon { background: #fef3c7; color: #92400e; }
 
-        /* Utility */
-        .status-pill { padding: 3px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
-        .status-online { background: #dcfce7; color: #166534; }
-        .status-offline { background: #fee2e2; color: #991b1b; }
-        .resource-label { font-size: 0.7rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; display: block; }
-        
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
-        .modal-content { background: white; margin: 5% auto; padding: 20px; border-radius: 12px; width: 450px; }
-        .btn-edit { background: #f1f5f9; color: #475569; border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; cursor: pointer; }
+        /* ══════════════════════════════════════
+           CONTENT
+        ══════════════════════════════════════ */
+        .content {
+            flex: 1;
+            padding: 2rem 2.5rem;
+            overflow-y: auto;
+            background: var(--bg-light);
+            height: 100%;
+        }
+        .page-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 1.75rem;
+            gap: 1rem;
+        }
+        .page-title { font-size: 1.25rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.02em; }
+        .page-desc { font-size: 0.82rem; color: var(--text-muted); margin-top: 3px; }
+        .page-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+
+        /* ══════════════════════════════════════
+           BUTTONS
+        ══════════════════════════════════════ */
+        .btn-primary {
+            background: var(--accent); color: #fff; border: none;
+            border-radius: var(--radius-sm); padding: 9px 20px;
+            font-size: 0.83rem; font-weight: 700; font-family: inherit;
+            cursor: pointer; transition: all 0.18s;
+            display: inline-flex; align-items: center; gap: 7px;
+        }
+        .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 4px 16px rgba(50,108,229,0.30); transform: translateY(-1px); }
+        .btn-primary:active { transform: translateY(0); }
+        .btn-small {
+            background: #fff; border: 1.5px solid var(--border);
+            color: var(--text-muted); padding: 7px 13px;
+            font-size: 0.78rem; font-weight: 600; border-radius: var(--radius-sm);
+            cursor: pointer; font-family: inherit; transition: all 0.18s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-small:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+        .btn-edit-sm {
+            background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe;
+            border-radius: var(--radius-sm); padding: 5px 10px;
+            font-size: 0.72rem; font-weight: 700; cursor: pointer; font-family: inherit;
+            transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px;
+        }
+        .btn-edit-sm:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
+        .btn-danger-sm {
+            background: #fef2f2; color: #c81e1e; border: 1px solid #fecaca;
+            border-radius: var(--radius-sm); padding: 5px 10px;
+            font-size: 0.72rem; font-weight: 700; cursor: pointer; font-family: inherit;
+            transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px;
+        }
+        .btn-danger-sm:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+        /* SEARCH */
+        .search-wrap { position: relative; display: flex; align-items: center; }
+        .search-wrap i { position: absolute; left: 10px; color: var(--text-muted); font-size: 0.75rem; }
+        .search-input {
+            background: #fff; border: 1.5px solid var(--border);
+            padding: 7px 12px 7px 30px; border-radius: var(--radius-sm);
+            color: var(--text-main); font-size: 0.82rem; font-family: inherit;
+            width: 240px; transition: 0.18s; outline: none;
+        }
+        .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(50,108,229,0.09); }
+        .search-input::placeholder { color: #a0aecf; }
+
+        /* ══════════════════════════════════════
+           TABLE
+        ══════════════════════════════════════ */
+        .data-table {
+            width: 100%; border-collapse: separate; border-spacing: 0;
+            background: var(--card-bg); border-radius: var(--radius-lg);
+            border: 1px solid var(--border); box-shadow: var(--shadow); overflow: hidden;
+        }
+        .data-table th {
+            background: #f4f7fd; text-align: left; padding: 12px 20px;
+            color: var(--text-muted); font-size: 0.62rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.13em;
+            border-bottom: 1px solid var(--border); white-space: nowrap;
+        }
+        .data-table td { padding: 12px 20px; border-bottom: 1px solid #edf1fb; font-size: 0.855rem; vertical-align: middle; }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tbody tr { transition: background 0.12s; }
+        .data-table tbody tr:hover td { background: #f7f9ff; }
+        .data-table td.mono { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--text-muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .table-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+        /* ══════════════════════════════════════
+           BADGES / STATUS
+        ══════════════════════════════════════ */
+        .badge-id {
+            padding: 3px 9px; border-radius: 5px;
+            font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
+            background: var(--accent-soft); color: var(--accent);
+            border: 1px solid rgba(50,108,229,0.15); font-family: 'JetBrains Mono', monospace;
+        }
+        .status-online { background: #ecfdf5; color: #0a7a55; border: 1px solid #a7f3d0; padding: 3px 10px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }
+        .status-online::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+        .status-offline { background: #fef2f2; color: #c81e1e; border: 1px solid #fecaca; padding: 3px 10px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }
+        .status-offline::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--danger); }
+        .code-preview { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; background: #f4f7fd; border: 1px solid var(--border); padding: 2px 7px; border-radius: 4px; color: var(--text-muted); }
+
+        /* ══════════════════════════════════════
+           LOADING / EMPTY
+        ══════════════════════════════════════ */
+        .loading-box { text-align: center; padding: 4rem 4rem; }
+        .minimal-spinner { width: 32px; height: 32px; border: 2.5px solid rgba(50,108,229,0.12); border-top: 2.5px solid var(--accent); border-radius: 50%; margin: 0 auto 1rem; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { font-size: 0.82rem; color: var(--text-muted); font-weight: 500; }
+        .empty-box { text-align: center; padding: 4rem 2rem; color: var(--text-muted); }
+        .empty-box i { font-size: 2.5rem; opacity: 0.18; display: block; margin-bottom: 1rem; }
+        .empty-box p { font-size: 0.85rem; max-width: 320px; margin: 0 auto; }
+
+        /* ══════════════════════════════════════
+           SUMMARY CARDS
+        ══════════════════════════════════════ */
+        .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.75rem; }
+        @media (max-width: 960px) { .summary-row { grid-template-columns: 1fr 1fr; } }
+        .summary-card {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 1.1rem 1.25rem;
+            box-shadow: var(--shadow); display: flex; align-items: center; gap: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .summary-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+        .summary-icon { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+        .si-blue { background: #eff6ff; color: #2563eb; }
+        .si-green { background: #ecfdf5; color: #0a7a55; }
+        .si-red { background: #fef2f2; color: #c81e1e; }
+        .si-purple { background: #f5f3ff; color: #6d28d9; }
+        .summary-val { font-size: 1.6rem; font-weight: 800; color: var(--text-main); font-family: 'JetBrains Mono', monospace; line-height: 1; }
+        .summary-lbl { font-size: 0.72rem; color: var(--text-muted); margin-top: 3px; font-weight: 500; }
+
+        /* ══════════════════════════════════════
+           FLEET CARDS
+        ══════════════════════════════════════ */
+        .fleet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.25rem; text-align: center; }
+        .cluster-card {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); box-shadow: var(--shadow);
+            overflow: hidden; transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .cluster-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+        .cluster-card.is-online { border-top: 3px solid var(--success); }
+        .cluster-card.is-offline { border-top: 3px solid var(--danger); }
+        .cc-header { padding: 1rem 1.25rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; border-bottom: 1px solid var(--border); background: #fafbfe; }
+        .cc-name { font-weight: 700; font-size: 0.92rem; color: var(--text-main); }
+        .cc-host { font-family: 'JetBrains Mono', monospace; font-size: 0.64rem; color: var(--text-muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+        .cc-stats { display: grid; grid-template-columns: repeat(3, 1fr); }
+        .cc-stat { padding: 0.75rem 0.5rem; text-align: center; border-right: 1px solid var(--border); }
+        .cc-stat:last-child { border-right: none; }
+        .cc-stat-val { font-size: 1rem; font-weight: 800; color: var(--text-main); font-family: 'JetBrains Mono', monospace; }
+        .cc-stat-lbl { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 700; margin-top: 2px; }
+        .cc-nodes { padding: 0.875rem 1.25rem; border-top: 1px solid var(--border); }
+        .cc-nodes-title { font-size: 0.60rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: 0.625rem; }
+        .node-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+        .node-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .node-name { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-main); }
+        .node-role { font-size: 0.62rem; color: var(--text-muted); font-weight: 600; }
+        .cc-error { padding: 0.75rem 1.25rem; border-top: 1px solid var(--border); }
+        .cc-error-msg { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--danger); display: flex; gap: 6px; align-items: flex-start; }
+
+        /* ══════════════════════════════════════
+           AUDIT / OBSERVER CARDS
+        ══════════════════════════════════════ */
+        .feature-section { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 2rem; box-shadow: var(--shadow); }
+        .feature-intro { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+        .feature-icon { width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0; }
+        .fi-blue { background: var(--accent-soft); color: var(--accent); }
+        .fi-orange { background: #fff7ed; color: #c2620a; }
+        .feature-intro h2 { font-size: 1rem; font-weight: 700; color: var(--text-main); margin-bottom: 4px; }
+        .feature-intro p { font-size: 0.80rem; color: var(--text-muted); max-width: 560px; line-height: 1.6; }
+        .audit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }
+        .audit-card { background: var(--bg-light); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; transition: box-shadow 0.18s; }
+        .audit-card:hover { box-shadow: var(--shadow); }
+        .audit-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+        .audit-card-name { font-size: 0.82rem; font-weight: 700; color: var(--text-main); }
+        .audit-card-desc { font-size: 0.75rem; color: var(--text-muted); line-height: 1.55; }
+        .tag-planned { font-size: 0.60rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); border: 1px solid rgba(50,108,229,0.2); font-family: 'JetBrains Mono', monospace; }
+        .tag-roadmap { font-size: 0.60rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: #fff7ed; color: #c2620a; border: 1px solid #fed7aa; font-family: 'JetBrains Mono', monospace; }
+
+        /* ══════════════════════════════════════
+           MODAL
+        ══════════════════════════════════════ */
+        .modal-overlay { display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(12,22,51,0.55); backdrop-filter: blur(5px); align-items: center; justify-content: center; padding: 1rem; }
+        .modal-overlay.open { display: flex; }
+        .modal-box { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); width: 100%; max-width: 440px; box-shadow: 0 28px 72px rgba(12,22,51,0.22), 0 0 0 1px rgba(50,108,229,0.10); animation: modalIn 0.2s ease; }
+        @keyframes modalIn { from { opacity: 0; transform: translateY(-10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .modal-header { padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: #fafbfe; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+        .modal-title { font-size: 0.92rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+        .modal-title i { color: var(--accent); }
+        .modal-close { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; padding: 2px; transition: color 0.15s; }
+        .modal-close:hover { color: var(--danger); }
+        .modal-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+        .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; background: #fafbfe; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem; }
+        .field-hint { font-size: 0.72rem; color: var(--text-muted); padding: 0.5rem 0.75rem; background: #f5f8fe; border-radius: var(--radius-sm); border-left: 3px solid var(--accent); }
+        .field-hint i { color: var(--accent); }
+        select.form-select { width: 100%; background: #f5f8fe; border: 1.5px solid var(--border); padding: 12px 14px; border-radius: var(--radius-sm); color: var(--text-main); font-size: 0.88rem; font-family: inherit; outline: none; cursor: pointer; appearance: none; transition: 0.18s; }
+        select.form-select:focus { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px rgba(50,108,229,0.11); }
+        .btn-cancel { background: #fff; border: 1.5px solid var(--border); color: var(--text-muted); border-radius: var(--radius-sm); padding: 8px 18px; font-size: 0.83rem; font-weight: 600; font-family: inherit; cursor: pointer; transition: 0.18s; }
+        .btn-cancel:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ══════════════════════════════════════
+           TOAST
+        ══════════════════════════════════════ */
+        #toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 99999; display: flex; flex-direction: column; gap: 8px; }
+        .toast { background: #fff; border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 0.7rem 1rem; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 10px; box-shadow: var(--shadow-lg); animation: toastIn 0.2s ease, toastOut 0.3s ease 2.5s forwards; max-width: 320px; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes toastOut { to { opacity: 0; transform: translateX(16px); } }
+        .toast.t-success { border-color: #a7f3d0; }
+        .toast.t-success i { color: var(--success); }
+        .toast.t-error { border-color: #fecaca; }
+        .toast.t-error i { color: var(--danger); }
     </style>
 </head>
-<body class="dashboard-page">
+<body>
 
-    <div id="adminLogin" style="display: flex; align-items: center; justify-content: center; height: 100vh; background: #f1f5f9;">
-        <div class="login-card">
-            <div class="auth-header">
-                <img src="logo_dashboard.jfif" alt="Logo" class="auth-logo">
-                <h1>Admin Access</h1>
-                <p>Master Fleet Controller</p>
-            </div>
-            <div class="form-group">
-                <label>Master API Key</label>
-                <input type="password" id="masterKeyInput" placeholder="••••••••••••••••" required>
-            </div>
-            <button onclick="adminLogin()" class="btn-primary" style="width: 100%; padding: 0.7rem; margin-top: 0.5rem;">
-                Unlock Infrastructure
-            </button>
-            <div id="loginError" style="color:#e11d48; font-size:0.8rem; text-align:center; margin-top:10px;"></div>
+<!-- ═══════════════ LOGIN ═══════════════ -->
+<div id="loginScreen">
+    <div class="login-card">
+        <div class="login-header">
+            <div class="login-logo-wrap"><i class="fas fa-shield-alt"></i></div>
+            <h1>Admin Console</h1>
+            <p>Infrastructure Control Plane — enter your master key</p>
         </div>
-    </div>
-
-    <div id="adminDashboard" style="display: none;">
-        <nav class="navbar">
-            <div class="nav-brand">
-                <i class="fas fa-shield-alt"></i> CLUSTER ADMIN MANAGEMENT
-            </div>
-            <div class="nav-right-container">
-                <button onclick="openClusterModal()" class="btn-action"><i class="fas fa-plus"></i> Add Cluster</button>
-                <button onclick="openProfileModal()" class="btn-action" style="background: #475569;"><i class="fas fa-key"></i> Add Profile</button>
-                <div class="nav-divider"></div>
-                <button onclick="adminLogout()" class="btn-logout"><i class="fas fa-power-off"></i></button>
-            </div>
-        </nav>
-
-        <div class="main-container">
-            <aside class="sidebar">
-                <div class="sidebar-section">Infrastructure</div>
-                <ul>
-                    <li id="menu-fleet" class="active" onclick="setActive(this); loadFleetStatus()"><i class="fas fa-heartbeat"></i> Global Health</li>
-                    <li id="menu-clusters" onclick="setActive(this); loadClusterList()"><i class="fas fa-server"></i> Clusters DB</li>
-                    <li id="menu-profiles" onclick="setActive(this); loadProfileList()"><i class="fas fa-address-card"></i> Profiles Registry</li>
-                </ul>
-            </aside>
-
-            <main class="content">
-                <div id="adminResultArea"></div>
-            </main>
+        <div class="form-group">
+            <label>Master API Key</label>
+            <input type="password" id="masterKeyInput" placeholder="••••••••••••••••••••" onkeydown="if(event.key==='Enter') adminLogin()">
         </div>
+        <button class="btn-primary" style="width:100%; justify-content:center;" onclick="adminLogin()">
+            <i class="fas fa-unlock"></i> Unlock Gateway
+        </button>
+        <div class="login-error" id="loginError"></div>
     </div>
+</div>
 
-    <div id="clusterModal" class="modal">
-        <div class="modal-content">
-            <h3 id="clusterModalTitle">Cluster Config</h3>
-            <form id="clusterForm">
-                <input type="hidden" name="_is_edit" id="clusterIsEdit">
-                <div class="form-group"><label>ID (Permanent)</label><input type="text" name="id" id="clusterIdField" required></div>
-                <div class="form-group"><label>Display Name</label><input type="text" name="name" required></div>
-                <div class="form-group"><label>API Host</label><input type="text" name="host" required></div>
-                <div class="form-group"><label>CA File (PEM)</label><input type="file" name="ca_file"></div>
-                <div style="display: flex; gap: 10px; margin-top: 15px;">
-                    <button type="submit" class="btn-primary" style="flex:1">Save</button>
-                    <button type="button" onclick="closeModals()" class="btn-logout" style="background:#94a3b8; flex:1">Cancel</button>
+<!-- ═══════════════ DASHBOARD ═══════════════ -->
+<div id="adminDashboard">
+    <nav class="navbar">
+        <div class="nav-brand">
+            <i class="fas fa-shield-alt"></i> CLUSTER ADMIN MANAGEMENT
+        </div>
+        <div class="nav-right">
+            <button class="btn-nav accent" onclick="openClusterModal()"><i class="fas fa-plus"></i> New Cluster</button>
+            <button class="btn-nav" onclick="openProfileModal()"><i class="fas fa-key"></i> New Profile</button>
+            <div class="nav-divider"></div>
+            <button class="btn-nav danger" onclick="adminLogout()" title="Logout"><i class="fas fa-power-off"></i></button>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <aside class="sidebar">
+            <div class="sidebar-section">Infrastructure</div>
+            <ul>
+                <li id="menu-fleet" onclick="setActive(this, 'fleet')">
+                    <i class="fas fa-heartbeat"></i> Global Health
+                </li>
+            </ul>
+            <div class="sidebar-section">Registry</div>
+            <ul>
+                <li id="menu-clusters" onclick="setActive(this, 'clusters')">
+                    <i class="fas fa-server"></i> Clusters DB
+                    <span class="sidebar-badge badge-count" id="badge-clusters">—</span>
+                </li>
+                <li id="menu-profiles" onclick="setActive(this, 'profiles')">
+                    <i class="fas fa-address-card"></i> Profiles Registry
+                    <span class="sidebar-badge badge-count" id="badge-profiles">—</span>
+                </li>
+            </ul>
+            <div class="sidebar-section">Compliance</div>
+            <ul>
+                <li id="menu-audit" onclick="setActive(this, 'audit')">
+                    <i class="fas fa-clipboard-check"></i> Audit Rules
+                    <span class="sidebar-badge badge-new">New</span>
+                </li>
+                <li id="menu-observers" onclick="setActive(this, 'observers')">
+                    <i class="fas fa-eye"></i> Observers
+                    <span class="sidebar-badge badge-soon">Soon</span>
+                </li>
+            </ul>
+        </aside>
+
+        <main class="content" id="mainContent"></main>
+    </div>
+</div>
+
+<!-- ═══════════════ CLUSTER MODAL ═══════════════ -->
+<div class="modal-overlay" id="clusterModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-title" id="clusterModalTitle"><i class="fas fa-server"></i> Register Cluster</div>
+            <button class="modal-close" onclick="closeModal('clusterModal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="clusterIsEdit" value="false">
+            <input type="hidden" id="clusterEditId">
+            <div class="form-group" style="margin-bottom:0">
+                <label>Cluster ID <span style="color:#a0aecf;font-weight:400;text-transform:none;letter-spacing:0">(immutable after creation)</span></label>
+                <input type="text" id="clusterIdField" placeholder="e.g. PROD-EU-1">
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="margin-bottom:0">
+                    <label>Display Name</label>
+                    <input type="text" id="clusterNameField" placeholder="Production K3s">
                 </div>
-            </form>
+                <div class="form-group" style="margin-bottom:0">
+                    <label>API Host</label>
+                    <input type="text" id="clusterHostField" placeholder="https://10.0.0.1:6443">
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label>CA Certificate (PEM)</label>
+                <input type="file" id="clusterCaFile" accept=".crt,.pem,.cer">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal('clusterModal')">Cancel</button>
+            <button class="btn-primary" onclick="submitCluster()"><i class="fas fa-save"></i> Save Cluster</button>
         </div>
     </div>
+</div>
 
-    <div id="profileModal" class="modal">
-        <div class="modal-content">
-            <h3 id="profileModalTitle">Service Profile</h3>
-            <form id="profileForm">
-                <input type="hidden" name="_id" id="profileIdField">
-                <div class="form-group">
-                    <label>Target Cluster</label>
-                    <select name="cluster_id" id="clusterSelect" required></select>
+<!-- ═══════════════ PROFILE MODAL ═══════════════ -->
+<div class="modal-overlay" id="profileModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-title" id="profileModalTitle"><i class="fas fa-key"></i> New Profile</div>
+            <button class="modal-close" onclick="closeModal('profileModal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="profileEditId">
+            <div class="form-group" style="margin-bottom:0">
+                <label>Target Cluster</label>
+                <select class="form-select" id="profileClusterSelect"></select>
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="margin-bottom:0">
+                    <label>Profile Name</label>
+                    <input type="text" id="profileNameField" placeholder="e.g. admin, dev, ci">
                 </div>
-                <div class="form-group"><label>Profile Name</label><input type="text" name="name" id="profileNameField" required></div>
-                <div class="form-group"><label>Gateway Password</label><input type="password" name="gateway_password" placeholder="••••••••"></div>
-                <div class="form-group"><label>K8s SA Token</label><input type="text" name="k8s_token" placeholder="Paste token here"></div>
-                <div style="display: flex; gap: 10px; margin-top: 15px;">
-                    <button type="submit" class="btn-primary" style="flex:1">Save</button>
-                    <button type="button" onclick="closeModals()" class="btn-logout" style="background:#94a3b8; flex:1">Cancel</button>
+                <div class="form-group" style="margin-bottom:0">
+                    <label>Gateway Password</label>
+                    <input type="password" id="profilePasswordField" placeholder="••••••••">
                 </div>
-            </form>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label>K8s Service Account Token</label>
+                <input type="password" id="profileTokenField" placeholder="eyJhbGci..." style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;">
+            </div>
+            <div id="profileEditHint" style="display:none">
+                <div class="field-hint"><i class="fas fa-info-circle"></i> Leave password and/or token empty to keep the existing values.</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal('profileModal')">Cancel</button>
+            <button class="btn-primary" onclick="submitProfile()"><i class="fas fa-save"></i> Save Profile</button>
         </div>
     </div>
+</div>
 
-    <script>
-        const MASTER_API = 'http://localhost:8000/api/v1/admin';
+<div id="toast-container"></div>
 
-        function adminLogin() {
-            const key = document.getElementById('masterKeyInput').value;
-            if(!key) return;
-            sessionStorage.setItem('admin_master_key', key);
-            checkAuth();
+<script>
+    const API = 'http://localhost:8000/api/v1/admin';
+    let adminKey = '';
+    let currentView = '';
+    let allClusters = [];
+    let allProfiles = [];
+
+    // ── AUTH ──
+    function adminLogin() {
+        const val = document.getElementById('masterKeyInput').value.trim();
+        if (!val) { document.getElementById('loginError').textContent = 'Enter the master key.'; return; }
+        adminKey = val;
+        adminRequest('/clusters').then(() => {
+            sessionStorage.setItem('admin_key', adminKey);
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('adminDashboard').classList.add('visible');
+            setActive(document.getElementById('menu-fleet'), 'fleet');
+            loadBadges();
+        }).catch(() => {
+            document.getElementById('loginError').textContent = 'Invalid key — access denied.';
+            adminKey = '';
+        });
+    }
+
+    function adminLogout() { sessionStorage.removeItem('admin_key'); location.reload(); }
+
+    function checkAuth() {
+        const saved = sessionStorage.getItem('admin_key');
+        if (saved) {
+            adminKey = saved;
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('adminDashboard').classList.add('visible');
+            setActive(document.getElementById('menu-fleet'), 'fleet');
+            loadBadges();
         }
+    }
 
-        function adminLogout() {
-            sessionStorage.removeItem('admin_master_key');
-            location.reload();
+    // ── HTTP ──
+    async function adminRequest(path, method = 'GET', body = null, isFormData = false) {
+        const opts = { method, headers: { 'X-Admin-Key': adminKey } };
+        if (body) {
+            if (isFormData) opts.body = body;
+            else { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
         }
+        const res = await fetch(`${API}${path}`, opts);
+        if (res.status === 403) { adminLogout(); throw new Error('Unauthorized'); }
+        if (!res.ok) { const txt = await res.text(); throw new Error(txt || `HTTP ${res.status}`); }
+        return res.json();
+    }
 
-        function checkAuth() {
-            if (sessionStorage.getItem('admin_master_key')) {
-                document.getElementById('adminLogin').style.display = 'none';
-                document.getElementById('adminDashboard').style.display = 'block';
-                loadFleetStatus();
-            }
-        }
+    // ── NAVIGATION ──
+    function setActive(el, view) {
+        document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
+        el.classList.add('active');
+        currentView = view;
+        ({ fleet: renderFleet, clusters: renderClusters, profiles: renderProfiles, audit: renderAudit, observers: renderObservers })[view]?.();
+    }
 
-        async function adminRequest(path, method = 'GET', body = null, isFormData = false) {
-            const key = sessionStorage.getItem('admin_master_key');
-            const options = { method, headers: { 'X-Admin-Key': key } };
-            if (body) {
-                if (isFormData) options.body = body;
-                else {
-                    options.headers['Content-Type'] = 'application/json';
-                    options.body = JSON.stringify(body);
-                }
-            }
-            const res = await fetch(`${MASTER_API}${path}`, options);
-            if (res.status === 403) { sessionStorage.removeItem('admin_master_key'); location.reload(); }
-            if (!res.ok) throw new Error(await res.text());
-            return res.json();
-        }
+    async function loadBadges() {
+        try {
+            const [c, p] = await Promise.all([adminRequest('/clusters'), adminRequest('/profiles')]);
+            document.getElementById('badge-clusters').textContent = c.length;
+            document.getElementById('badge-profiles').textContent = p.length;
+        } catch (_) {}
+    }
 
-        async function loadFleetStatus() {
-            const area = document.getElementById('adminResultArea');
-            
-            // Mostriamo lo spinner
-            area.innerHTML = `
-                <div class="loading-container">
-                    <div class="spinner"></div>
-                    <div class="loading-text">Retrieving Infrastructure Fleet Status...</div>
-                </div>`;
-            
-            try {
-                const data = await adminRequest('/fleet/status');
-                
-                // GESTIONE CACHE VUOTA (Scan ancora in corso al primo avvio)
-                if (!data || data.length === 0) {
-                    area.innerHTML = `
-                        <div class="loading-container">
-                            <div class="spinner"></div>
-                            <div class="loading-text">Initial scan in progress... please wait a few seconds.</div>
-                        </div>`;
-                    // Riprova tra 3 secondi automaticamente
-                    setTimeout(loadFleetStatus, 3000);
-                    return;
-                }
+    // ── FLEET ──
+    async function renderFleet() {
+        const main = document.getElementById('mainContent');
+        main.innerHTML = `
+            <div class="page-header">
+                <div><div class="page-title">Global Health</div><div class="page-desc">Real-time infrastructure overview across all registered clusters</div></div>
+                <div class="page-actions"><button class="btn-small" onclick="renderFleet()"><i class="fas fa-sync-alt"></i> Refresh</button></div>
+            </div>
+            <div id="summaryRow"></div>
+            <div id="fleetGrid" class="fleet-grid"></div>`;
+        document.getElementById('fleetGrid').innerHTML = loadingHtml('Scanning fleet...');
+        try {
+            const data = await adminRequest('/fleet/status');
+            buildSummary(data);
+            buildFleetGrid(data);
+        } catch (e) { document.getElementById('fleetGrid').innerHTML = emptyHtml(e.message, 'fa-exclamation-triangle'); }
+    }
 
-                area.innerHTML = '<div class="fleet-grid" id="fleetGrid"></div>';
-                const grid = document.getElementById('fleetGrid');
-                
-                grid.innerHTML = data.map(c => {
-                    const isOnline = c.status === 'online';
-                    const nodes = c.nodes || [];
-                    // Assicurati che namespaces esista come oggetto
-                    const nsCount = c.namespaces?.items ? c.namespaces.items.length : 0;
+    function buildSummary(data) {
+        const total = data.length;
+        const online = data.filter(c => c.status === 'online').length;
+        const pods = data.reduce((s, c) => s + (c.stats?.pods_running || 0), 0);
+        const nodes = data.reduce((s, c) => s + (c.nodes?.length || 0), 0);
+        document.getElementById('summaryRow').innerHTML = `
+            <div class="summary-row">
+                <div class="summary-card"><div class="summary-icon si-blue"><i class="fas fa-server"></i></div><div><div class="summary-val">${online}/${total}</div><div class="summary-lbl">Clusters Online</div></div></div>
+                <div class="summary-card"><div class="summary-icon ${online < total ? 'si-red' : 'si-green'}"><i class="fas fa-circle-${online < total ? 'xmark' : 'check'}"></i></div><div><div class="summary-val">${online < total ? total - online : 0}</div><div class="summary-lbl">Offline / Unreachable</div></div></div>
+                <div class="summary-card"><div class="summary-icon si-blue"><i class="fas fa-cube"></i></div><div><div class="summary-val">${pods}</div><div class="summary-lbl">Running Pods</div></div></div>
+                <div class="summary-card"><div class="summary-icon si-purple"><i class="fas fa-hdd"></i></div><div><div class="summary-val">${nodes}</div><div class="summary-lbl">Active Nodes</div></div></div>
+            </div>`;
+    }
 
-                    return `
-                        <div class="fleet-card">
-                            <div class="fleet-card-header">
-                                <div>
-                                    <strong>${c.cluster_name}</strong> 
-                                    <span style="font-size:0.65rem; opacity:0.6; margin-left:5px;">${c.server_version || ''}</span>
-                                    <br><small style="font-size:0.65rem; color:#64748b">${c.host}</small>
-                                </div>
-                                <span class="status-pill ${isOnline ? 'status-online' : 'status-offline'}">${c.status}</span>
-                            </div>
-                            <div class="fleet-card-body">
-                                ${c.error ? `<div style="color:var(--danger); font-size:0.7rem; background:#fff1f2; padding:10px; border-radius:8px;"><i class="fas fa-exclamation-triangle"></i> ${c.error}</div>` : `
-                                    
-                                    <div class="stats-bar">
-                                        <div class="stat-item">
-                                            <div class="stat-label">Pods</div>
-                                            <div class="stat-value">${c.stats.pods_running}/${c.stats.pods_total}</div>
-                                        </div>
-                                        <div class="stat-item">
-                                            <div class="stat-label">CPU</div>
-                                            <div class="stat-value">${c.stats.cpu_total} cores</div>
-                                        </div>
-                                        <div class="stat-item">
-                                            <div class="stat-label">NS</div>
-                                            <div class="stat-value">${nsCount}</div>
-                                        </div>
-                                    </div>
+    function buildFleetGrid(data) {
+        const grid = document.getElementById('fleetGrid');
+        if (!data?.length) { grid.innerHTML = emptyHtml('No data yet — initial scan may be in progress.', 'fa-satellite-dish'); setTimeout(renderFleet, 3000); return; }
+        grid.innerHTML = data.map(c => {
+            const on = c.status === 'online';
+            const nodes = (c.nodes || []).slice(0, 6);
+            return `
+            <div class="cluster-card ${on ? 'is-online' : 'is-offline'}">
+                <div class="cc-header">
+                    <div><div class="cc-name">${esc(c.cluster_name)}</div><div class="cc-host">${esc(c.host)}</div></div>
+                    <span class="${on ? 'status-online' : 'status-offline'}">${on ? 'online' : 'offline'}</span>
+                </div>
+                ${on ? `
+                <div class="cc-stats">
+                    <div class="cc-stat"><div class="cc-stat-val">${c.stats?.pods_running ?? '—'}/${c.stats?.pods_total ?? '—'}</div><div class="cc-stat-lbl">Pods</div></div>
+                    <div class="cc-stat"><div class="cc-stat-val">${c.stats?.cpu_total ?? '—'}</div><div class="cc-stat-lbl">CPU</div></div>
+                    <div class="cc-stat"><div class="cc-stat-val">${c.namespaces?.items?.length ?? '—'}</div><div class="cc-stat-lbl">NS</div></div>
+                </div>
+                ${nodes.length ? `<div class="cc-nodes">
+                    <div class="cc-nodes-title">Active Nodes · k8s v${c.server_version || '?'}</div>
+                    ${nodes.map(n => `<div class="node-row"><div class="node-dot" style="background:${n.status === 'Ready' ? 'var(--success)' : 'var(--danger)'}"></div><div class="node-name">${esc(n.name)}</div><div class="node-role">${esc(n.role)}</div></div>`).join('')}
+                </div>` : ''}` : `
+                <div class="cc-error"><div class="cc-error-msg"><i class="fas fa-times-circle"></i> ${esc(c.error || 'Unreachable')}</div></div>`}
+            </div>`;
+        }).join('');
+    }
 
-                                    <span class="resource-label">Cluster Nodes</span>
-                                    <div class="nodes-container">
-                                        ${nodes.map(n => `
-                                            <div class="node-item">
-                                                <div class="node-status-indicator" style="background:${n.status === 'Ready' ? 'var(--success)' : 'var(--danger)'}"></div>
-                                                <div class="node-info">
-                                                    <span class="node-name" title="${n.name}">${n.name}</span>
-                                                    <span class="node-role">${n.role} • ${n.cpu} CPU</span>
-                                                </div>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                `}
-                            </div>
-                        </div>`;
-                }).join('');
-            } catch (e) { 
-                area.innerHTML = `<div class="error-box" style="text-align:center; padding:50px;">
-                    <i class="fas fa-exclamation-circle fa-2x" style="color:var(--danger)"></i>
-                    <p style="margin-top:15px; font-weight:600;">Error: ${e.message}</p>
-                </div>`; 
-            }
-        }
+    // ── CLUSTERS ──
+    async function renderClusters() {
+        document.getElementById('mainContent').innerHTML = `
+            <div class="page-header">
+                <div><div class="page-title">Clusters DB</div><div class="page-desc">Registered Kubernetes clusters and their CA certificates</div></div>
+                <div class="page-actions">
+                    <div class="search-wrap"><i class="fas fa-search"></i><input class="search-input" id="clusterSearch" placeholder="Search by ID or name..." oninput="filterClusters(this.value)"></div>
+                    <button class="btn-small" onclick="loadClusters()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="btn-primary" onclick="openClusterModal()"><i class="fas fa-plus"></i> Add Cluster</button>
+                </div>
+            </div>
+            <div id="clustersTable"></div>`;
+        await loadClusters();
+    }
 
-        // --- 2. CLUSTER INVENTORY ---
-        async function loadClusterList() {
-            const area = document.getElementById('adminResultArea');
-            try {
-                const data = await adminRequest('/clusters');
-                area.innerHTML = `<h2>Registered Clusters</h2><table class="data-table">
-                    <thead><tr><th>ID</th><th>Name</th><th>Endpoint</th><th>CA</th><th>Actions</th></tr></thead>
-                    <tbody>${data.map(c => `<tr>
-                        <td><strong>${c.id}</strong></td><td>${c.name}</td><td><code>${c.host}</code></td>
-                        <td>${c.has_ca ? '✅' : '❌'}</td>
-                        <td>
-                            <button class="btn-edit" onclick='openClusterModal(${JSON.stringify(c)})'><i class="fas fa-cog"></i></button>
-                            <button class="delete-btn btn-small" onclick="deleteCluster('${c.id}')"><i class="fas fa-trash"></i></button>
-                        </td>
-                    </tr>`).join('')}</tbody></table>`;
-            } catch (e) { alert(e.message); }
-        }
+    async function loadClusters() {
+        document.getElementById('clustersTable').innerHTML = loadingHtml('Loading clusters...');
+        try {
+            allClusters = await adminRequest('/clusters');
+            document.getElementById('badge-clusters').textContent = allClusters.length;
+            renderClustersTable(allClusters);
+        } catch (e) { document.getElementById('clustersTable').innerHTML = emptyHtml(e.message, 'fa-exclamation-triangle'); }
+    }
 
-        async function loadProfileList() {
-            const area = document.getElementById('adminResultArea');
-            try {
-                const data = await adminRequest('/profiles');
-                area.innerHTML = `<h2>Profiles Registry</h2><table class="data-table">
-                    <thead><tr><th>Cluster</th><th>Profile</th><th>Token Preview</th><th>Actions</th></tr></thead>
-                    <tbody>${data.map(p => `<tr>
-                        <td><span class="badge">${p.cluster_id}</span></td><td><strong>${p.name}</strong></td><td><code>${p.token_preview}</code></td>
-                        <td>
-                            <button class="btn-edit" onclick='openProfileModal(${JSON.stringify(p)})'><i class="fas fa-user-cog"></i></button>
-                            <button class="delete-btn btn-small" onclick="deleteProfile(${p.id})"><i class="fas fa-trash"></i></button>
-                        </td>
-                    </tr>`).join('')}</tbody></table>`;
-            } catch (e) { alert(e.message); }
-        }
+    function filterClusters(q) {
+        renderClustersTable(allClusters.filter(c => c.id.toLowerCase().includes(q.toLowerCase()) || c.name.toLowerCase().includes(q.toLowerCase())));
+    }
 
-        // CRUD Logic
-        async function deleteCluster(id) { if(confirm(`Confirm delete ${id}?`)) { await adminRequest(`/clusters/${id}`, 'DELETE'); loadClusterList(); } }
-        async function deleteProfile(id) { if(confirm(`Confirm delete profile ${id}?`)) { await adminRequest(`/profiles/${id}`, 'DELETE'); loadProfileList(); } }
+    function renderClustersTable(data) {
+        const el = document.getElementById('clustersTable');
+        if (!data.length) { el.innerHTML = emptyHtml('No clusters registered. Add your first cluster to get started.', 'fa-server'); return; }
+        el.innerHTML = `<table class="data-table">
+            <thead><tr><th>ID</th><th>Name</th><th>Host</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody>${data.map(c => `<tr>
+                <td><span class="badge-id">${esc(c.id)}</span></td>
+                <td style="font-weight:600">${esc(c.name)}</td>
+                <td class="mono">${esc(c.host)}</td>
+                <td><div class="table-actions">
+                    <button class="btn-edit-sm" onclick='openClusterModal(${JSON.stringify(c)})'><i class="fas fa-edit"></i> Edit</button>
+                    <button class="btn-danger-sm" onclick="deleteCluster('${esc(c.id)}')"><i class="fas fa-trash"></i></button>
+                </div></td>
+            </tr>`).join('')}</tbody></table>`;
+    }
 
-        function openClusterModal(data = null) {
-            const form = document.getElementById('clusterForm'); form.reset();
-            if(data) {
-                document.getElementById('clusterIdField').value = data.id;
-                document.getElementById('clusterIdField').readOnly = true;
-                form.name.value = data.name; form.host.value = data.host;
-                document.getElementById('clusterIsEdit').value = "true";
-                document.getElementById('clusterModalTitle').innerText = "Edit Cluster: " + data.id;
-            } else {
-                document.getElementById('clusterIdField').readOnly = false;
-                document.getElementById('clusterIsEdit').value = "false";
-                document.getElementById('clusterModalTitle').innerText = "Add New Cluster";
-            }
-            document.getElementById('clusterModal').style.display = 'block';
-        }
+    async function deleteCluster(id) {
+        if (!confirm(`Delete cluster "${id}" and all its profiles?\nThis cannot be undone.`)) return;
+        try { await adminRequest(`/clusters/${id}`, 'DELETE'); toast('Cluster deleted', 'success'); loadClusters(); loadBadges(); }
+        catch (e) { toast(e.message, 'error'); }
+    }
 
-        async function openProfileModal(data = null) {
+    // ── PROFILES ──
+    async function renderProfiles() {
+        document.getElementById('mainContent').innerHTML = `
+            <div class="page-header">
+                <div><div class="page-title">Profiles Registry</div><div class="page-desc">Service Account profiles mapped to clusters — credentials stored encrypted</div></div>
+                <div class="page-actions">
+                    <div class="search-wrap"><i class="fas fa-search"></i><input class="search-input" id="profileSearch" placeholder="Search profile or cluster..." oninput="filterProfiles(this.value)"></div>
+                    <button class="btn-small" onclick="loadProfiles()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="btn-primary" onclick="openProfileModal()"><i class="fas fa-plus"></i> Add Profile</button>
+                </div>
+            </div>
+            <div id="profilesTable"></div>`;
+        await loadProfiles();
+    }
+
+    async function loadProfiles() {
+        document.getElementById('profilesTable').innerHTML = loadingHtml('Loading profiles...');
+        try {
+            allProfiles = await adminRequest('/profiles');
+            document.getElementById('badge-profiles').textContent = allProfiles.length;
+            renderProfilesTable(allProfiles);
+        } catch (e) { document.getElementById('profilesTable').innerHTML = emptyHtml(e.message, 'fa-exclamation-triangle'); }
+    }
+
+    function filterProfiles(q) {
+        renderProfilesTable(allProfiles.filter(p => p.name.toLowerCase().includes(q.toLowerCase()) || p.cluster_id.toLowerCase().includes(q.toLowerCase())));
+    }
+
+    function renderProfilesTable(data) {
+        const el = document.getElementById('profilesTable');
+        if (!data.length) { el.innerHTML = emptyHtml('No profiles found. Create a profile to enable cluster authentication.', 'fa-address-card'); return; }
+        el.innerHTML = `<table class="data-table">
+            <thead><tr><th>Cluster</th><th>Profile Name</th><th>Token Preview</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody>${data.map(p => `<tr>
+                <td><span class="badge-id">${esc(p.cluster_id)}</span></td>
+                <td style="font-weight:600">${esc(p.name)}</td>
+                <td><span class="code-preview">${esc(p.token_preview || '—')}</span></td>
+                <td><div class="table-actions">
+                    <button class="btn-edit-sm" onclick='openProfileModal(${JSON.stringify(p)})'><i class="fas fa-edit"></i> Edit</button>
+                    <button class="btn-danger-sm" onclick="deleteProfile(${p.id})"><i class="fas fa-trash"></i></button>
+                </div></td>
+            </tr>`).join('')}</tbody></table>`;
+    }
+
+    async function deleteProfile(id) {
+        if (!confirm(`Delete profile #${id}?`)) return;
+        try { await adminRequest(`/profiles/${id}`, 'DELETE'); toast('Profile deleted', 'success'); loadProfiles(); loadBadges(); }
+        catch (e) { toast(e.message, 'error'); }
+    }
+
+    // ── AUDIT ──
+    function renderAudit() {
+        document.getElementById('mainContent').innerHTML = `
+            <div class="page-header">
+                <div><div class="page-title">Audit Rules</div><div class="page-desc">Policy-based compliance checks run against all registered clusters</div></div>
+            </div>
+            <div class="feature-section">
+                <div class="feature-intro">
+                    <div class="feature-icon fi-blue"><i class="fas fa-fingerprint"></i></div>
+                    <div><h2>Policy Compliance Engine</h2><p>Define and enforce configuration standards across your entire Kubernetes fleet. Rules run against cluster data collected by the Fleet Observer.</p></div>
+                </div>
+                <div class="audit-grid">
+                    ${auditCard('Node OS Baseline','Verify all nodes run an approved OS version (e.g. Ubuntu 22.04 LTS).','planned')}
+                    ${auditCard('K8s Version Policy','Flag clusters running Kubernetes versions older than a configurable threshold.','planned')}
+                    ${auditCard('Ingress Controller','Check for presence and readiness of an Ingress controller in each cluster.','planned')}
+                    ${auditCard('Privileged Pod Guard','Detect workloads running with privileged or host-network security contexts.','roadmap')}
+                    ${auditCard('RBAC Admin Audit','List all cluster-admin bindings not included in a permitted whitelist.','roadmap')}
+                    ${auditCard('Image Registry Policy','Reject pods pulling images from unregistered external registries.','roadmap')}
+                    ${auditCard('Resource Quotas','Ensure all workload namespaces have CPU and memory quotas defined.','roadmap')}
+                    ${auditCard('Network Policies','Validate that workload namespaces have at least one NetworkPolicy applied.','roadmap')}
+                </div>
+            </div>`;
+    }
+
+    function auditCard(name, desc, tag) {
+        return `<div class="audit-card"><div class="audit-card-head"><div class="audit-card-name">${name}</div><span class="${tag === 'planned' ? 'tag-planned' : 'tag-roadmap'}">${tag === 'planned' ? 'Planned' : 'Roadmap'}</span></div><div class="audit-card-desc">${desc}</div></div>`;
+    }
+
+    // ── OBSERVERS ──
+    function renderObservers() {
+        document.getElementById('mainContent').innerHTML = `
+            <div class="page-header">
+                <div><div class="page-title">Observers</div><div class="page-desc">Continuous watchers that stream cluster events to this console in real time</div></div>
+            </div>
+            <div class="feature-section">
+                <div class="feature-intro">
+                    <div class="feature-icon fi-orange"><i class="fas fa-eye"></i></div>
+                    <div><h2>Real-time Observation Layer</h2><p>Live event streaming and anomaly detection across all clusters. Observers run persistently and surface conditions the Fleet scanner would otherwise miss between polling cycles.</p></div>
+                </div>
+                <div class="audit-grid">
+                    ${auditCard('Pod Restart Observer','Alert when a pod exceeds N restarts within a configurable sliding time window.','roadmap')}
+                    ${auditCard('Node Pressure Watch','Detect MemoryPressure or DiskPressure conditions on any node in the fleet.','roadmap')}
+                    ${auditCard('Deployment Health','Track deployment replica counts vs desired and surface degraded rollouts.','roadmap')}
+                    ${auditCard('Certificate Expiry','Warn when cluster CA or ingress TLS certificates are within 30 days of expiry.','roadmap')}
+                </div>
+            </div>`;
+    }
+
+    // ── MODALS ──
+    function openClusterModal(data = null) {
+        const isEdit = !!data;
+        document.getElementById('clusterIsEdit').value = isEdit;
+        document.getElementById('clusterEditId').value = isEdit ? data.id : '';
+        document.getElementById('clusterIdField').value = isEdit ? data.id : '';
+        document.getElementById('clusterIdField').disabled = isEdit;
+        document.getElementById('clusterNameField').value = isEdit ? data.name : '';
+        document.getElementById('clusterHostField').value = isEdit ? data.host : '';
+        document.getElementById('clusterCaFile').value = '';
+        document.getElementById('clusterModalTitle').innerHTML = `<i class="fas fa-server"></i> ${isEdit ? 'Edit Cluster' : 'Register Cluster'}`;
+        document.getElementById('clusterModal').classList.add('open');
+    }
+
+    async function openProfileModal(data = null) {
+        const isEdit = !!data;
+        try {
             const clusters = await adminRequest('/clusters');
-            const select = document.getElementById('clusterSelect');
-            select.innerHTML = clusters.map(c => `<option value="${c.id}">${c.id}</option>`).join('');
-            const form = document.getElementById('profileForm'); form.reset();
-            if(data) {
-                document.getElementById('profileIdField').value = data.id;
-                select.value = data.cluster_id; form.name.value = data.name;
-                document.getElementById('profileModalTitle').innerText = "Edit Profile: " + data.name;
-            } else {
-                document.getElementById('profileIdField').value = "";
-                document.getElementById('profileModalTitle').innerText = "Add New Profile";
-            }
-            document.getElementById('profileModal').style.display = 'block';
-        }
+            const sel = document.getElementById('profileClusterSelect');
+            sel.innerHTML = clusters.map(c => `<option value="${esc(c.id)}">${esc(c.id)} — ${esc(c.name)}</option>`).join('');
+            if (isEdit) sel.value = data.cluster_id;
+        } catch (_) {}
+        document.getElementById('profileEditId').value = isEdit ? data.id : '';
+        document.getElementById('profileNameField').value = isEdit ? data.name : '';
+        document.getElementById('profilePasswordField').value = '';
+        document.getElementById('profileTokenField').value = '';
+        document.getElementById('profileEditHint').style.display = isEdit ? 'block' : 'none';
+        document.getElementById('profileModalTitle').innerHTML = `<i class="fas fa-key"></i> ${isEdit ? 'Edit Profile' : 'New Profile'}`;
+        document.getElementById('profileModal').classList.add('open');
+    }
 
-        function closeModals() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-        document.getElementById('clusterForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const isEdit = document.getElementById('clusterIsEdit').value === "true";
-            const id = document.getElementById('clusterIdField').value;
-            const formData = new FormData(e.target);
-            try {
-                await adminRequest(`/clusters${isEdit ? '/'+id : ''}`, isEdit ? 'PATCH' : 'POST', formData, true);
-                closeModals(); loadClusterList();
-            } catch(e) { alert(e.message); }
-        };
+    document.querySelectorAll('.modal-overlay').forEach(o => {
+        o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+    });
 
-        document.getElementById('profileForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const pid = document.getElementById('profileIdField').value;
-            const data = Object.fromEntries(new FormData(e.target));
-            if(pid) { if(!data.gateway_password) delete data.gateway_password; if(!data.k8s_token) delete data.k8s_token; }
-            try {
-                await adminRequest(`/profiles${pid ? '/'+pid : ''}`, pid ? 'PATCH' : 'POST', data);
-                closeModals(); loadProfileList();
-            } catch(e) { alert(e.message); }
-        };
+    async function submitCluster() {
+        const isEdit = document.getElementById('clusterIsEdit').value === 'true';
+        const id = isEdit ? document.getElementById('clusterEditId').value : document.getElementById('clusterIdField').value.trim();
+        const name = document.getElementById('clusterNameField').value.trim();
+        const host = document.getElementById('clusterHostField').value.trim();
+        const caFile = document.getElementById('clusterCaFile').files[0];
+        if (!id || !name || !host) { toast('ID, Name and Host are required', 'error'); return; }
+        const fd = new FormData();
+        if (!isEdit) fd.append('id', id);
+        fd.append('name', name); fd.append('host', host);
+        if (caFile) fd.append('ca_file', caFile);
+        try {
+            await adminRequest(`/clusters${isEdit ? '/'+id : ''}`, isEdit ? 'PATCH' : 'POST', fd, true);
+            toast(`Cluster ${isEdit ? 'updated' : 'registered'}`, 'success');
+            closeModal('clusterModal');
+            if (currentView === 'clusters') loadClusters();
+            loadBadges();
+        } catch (e) { toast(e.message, 'error'); }
+    }
 
-        function setActive(el) {
-            document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
-            el.classList.add('active');
-        }
+    async function submitProfile() {
+        const pid = document.getElementById('profileEditId').value;
+        const isEdit = !!pid;
+        const body = { cluster_id: document.getElementById('profileClusterSelect').value, name: document.getElementById('profileNameField').value.trim() };
+        const pw = document.getElementById('profilePasswordField').value;
+        const tok = document.getElementById('profileTokenField').value;
+        if (!isEdit && (!pw || !tok)) { toast('Password and token are required for new profiles', 'error'); return; }
+        if (pw) body.gateway_password = pw;
+        if (tok) body.k8s_token = tok;
+        if (!body.name) { toast('Profile name is required', 'error'); return; }
+        try {
+            await adminRequest(`/profiles${isEdit ? '/'+pid : ''}`, isEdit ? 'PATCH' : 'POST', body);
+            toast(`Profile ${isEdit ? 'updated' : 'created'}`, 'success');
+            closeModal('profileModal');
+            if (currentView === 'profiles') loadProfiles();
+            loadBadges();
+        } catch (e) { toast(e.message, 'error'); }
+    }
 
-        checkAuth();
-    </script>
+    // ── UTILS ──
+    function esc(s) { if (s == null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function loadingHtml(msg) { return `<div class="loading-box"><div class="minimal-spinner"></div><div class="loading-text">${msg}</div></div>`; }
+    function emptyHtml(msg, icon = 'fa-inbox') { return `<div class="empty-box"><i class="fas ${icon}"></i><p>${esc(msg)}</p></div>`; }
+    function toast(msg, type = 'success') {
+        const el = document.createElement('div');
+        el.className = `toast t-${type}`;
+        el.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${esc(msg)}`;
+        document.getElementById('toast-container').appendChild(el);
+        setTimeout(() => el.remove(), 3000);
+    }
+
+    checkAuth();
+</script>
 </body>
 </html>
