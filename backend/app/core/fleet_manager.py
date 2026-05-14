@@ -35,3 +35,12 @@ class FleetManager:
         # ma con create_task solitamente è pronta in pochi secondi.
         return cls._cache
 
+    @classmethod
+    async def refresh(cls):
+        """Esegue la scansione e aggiorna la cache. Ritorna i nuovi dati."""
+        new_data = await scan_all_clusters()
+        if new_data:
+            cls._cache = new_data
+            logger.info("Fleet cache aggiornata con successo.")
+        return cls._cache
+
