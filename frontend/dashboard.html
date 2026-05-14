@@ -6,6 +6,7 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="dashboard-page">
     <nav class="navbar">
@@ -119,27 +120,7 @@
                     <div id="nsContextArea" style="display: flex; gap: 8px; align-items: center;"></div>
                 </div>
 
-                <div style="position: relative; display: flex; align-items: center; gap: 5px;">
-                    <i class="fas fa-info-circle" 
-                    style="color: var(--accent); cursor: help;" 
-                    onclick="document.getElementById('filterHelp').classList.toggle('show')"></i>
-
-                        <div id="filterHelp" class="info-tooltip">
-                            <strong>K8s Label Selectors:</strong>
-                            <ul>
-                                <li><code>app=web</code> : Exact match (AND)</li>
-                                <li><code>app=web,env=prod</code> : Multiple labels (AND)</li>
-                                <li><code>app!=web</code> : Exclusion</li>
-                                <li><code>app in (web, api)</code> : One of these (OR)</li>
-                                <li><code>app notin (db)</code> : Not in these</li>
-                            </ul>
-                        </div>
-                    
-                    <input type="text" id="labelFilter" placeholder="Filter by label..." 
-                        style="width: 200px; padding: 8px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.8rem;">
-                    
-                </div>
-
+                <div id="dynamicControlsArea" style="display: flex; align-items: center; gap: 10px;"></div>
                 <button onclick="refreshCurrentView()" class="scale-btn">Refresh</button>
             </div>
 
