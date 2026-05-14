@@ -6,6 +6,7 @@
     <title>K8s Gateway — Admin Console</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         /* ══════════════════════════════════════
@@ -37,7 +38,7 @@
         html, body { height: 100%; }
 
         body {
-            font-family: 'Sora', -apple-system, sans-serif;
+            font-family: 'Inter', sans-serif; /* Sostituisci qui */
             background: var(--bg-light);
             color: var(--text-main);
             line-height: 1.55;
@@ -403,7 +404,7 @@
         /* ══════════════════════════════════════
            FLEET CARDS
         ══════════════════════════════════════ */
-        .fleet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.25rem; text-align: center; }
+        .fleet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.25rem;}
         .cluster-card {
             background: var(--card-bg); border: 1px solid var(--border);
             border-radius: var(--radius-lg); box-shadow: var(--shadow);
@@ -541,7 +542,6 @@
             <ul>
                 <li id="menu-audit" onclick="setActive(this, 'audit')">
                     <i class="fas fa-clipboard-check"></i> Audit Rules
-                    <span class="sidebar-badge badge-new">New</span>
                 </li>
                 <li id="menu-observers" onclick="setActive(this, 'observers')">
                     <i class="fas fa-eye"></i> Observers
@@ -856,31 +856,374 @@
     }
 
     // ── AUDIT ──
-    function renderAudit() {
-        document.getElementById('mainContent').innerHTML = `
+    async function renderAudit() {
+        const main = document.getElementById('mainContent');
+        main.innerHTML = `
             <div class="page-header">
-                <div><div class="page-title">Audit Rules</div><div class="page-desc">Policy-based compliance checks run against all registered clusters</div></div>
+                <div>
+                    <div class="page-title">Compliance & Audit Fleet</div>
+                    <div class="page-desc">Manage policies and security standards across all Kubernetes clusters</div>
+                </div>
+                <div class="page-actions">
+                    <button class="btn-small" onclick="showAuditCatalog()"><i class="fas fa-book"></i> Rule Catalog</button>
+                    <button class="btn-primary" onclick="refreshAuditData()"><i class="fas fa-sync-alt"></i> Force Fleet Audit</button>
+                </div>
             </div>
-            <div class="feature-section">
-                <div class="feature-intro">
-                    <div class="feature-icon fi-blue"><i class="fas fa-fingerprint"></i></div>
-                    <div><h2>Policy Compliance Engine</h2><p>Define and enforce configuration standards across your entire Kubernetes fleet. Rules run against cluster data collected by the Fleet Observer.</p></div>
+            <div id="auditSummary"></div>
+            <div id="auditResultsArea"></div>`;
+        
+        await loadAuditResults();
+    }
+
+    // Fetches and displays the static catalog of ALL available rules (GET /rules)
+    async function showAuditCatalog() {
+        const main = document.getElementById('mainContent');
+        
+        // Clean loading state for the entire area
+        main.innerHTML = loadingHtml('Fetching global rule registry...');
+        
+        try {
+            const rules = await adminRequest('/audit/rules');
+
+            main.innerHTML = `
+                <div class="page-header">
+                    <div>
+                        <div class="page-title">
+                            <i class="fas fa-book" style="color:var(--accent); margin-right:8px;"></i>
+                            Rule Catalog and Available Audit Definitions
+                        </div>
+                        <div class="page-desc">Comprehensive list of all security and compliance checks available in the Audit Engine.</div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn-primary" onclick="renderAudit()">
+                            <i class="fas fa-arrow-left"></i> Back to Fleet Audit
+                        </button>
+                    </div>
                 </div>
-                <div class="audit-grid">
-                    ${auditCard('Node OS Baseline','Verify all nodes run an approved OS version (e.g. Ubuntu 22.04 LTS).','planned')}
-                    ${auditCard('K8s Version Policy','Flag clusters running Kubernetes versions older than a configurable threshold.','planned')}
-                    ${auditCard('Ingress Controller','Check for presence and readiness of an Ingress controller in each cluster.','planned')}
-                    ${auditCard('Privileged Pod Guard','Detect workloads running with privileged or host-network security contexts.','roadmap')}
-                    ${auditCard('RBAC Admin Audit','List all cluster-admin bindings not included in a permitted whitelist.','roadmap')}
-                    ${auditCard('Image Registry Policy','Reject pods pulling images from unregistered external registries.','roadmap')}
-                    ${auditCard('Resource Quotas','Ensure all workload namespaces have CPU and memory quotas defined.','roadmap')}
-                    ${auditCard('Network Policies','Validate that workload namespaces have at least one NetworkPolicy applied.','roadmap')}
+                
+                <div class="card">
+                    <div class="card-body" style="padding:0">
+                        <table class="data-table" style="box-shadow:none; border:none;">
+                            <thead>
+                                <tr>
+                                    <th style="width:25%">Rule Name & ID</th>
+                                    <th style="width:15%">Severity</th>
+                                    <th style="width:60%">Technical Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rules.map(r => `
+                                    <tr>
+                                        <td>
+                                            <div style="font-weight:700; color:var(--text-main);">${esc(r.name || r.id)}</div>
+                                            <code style="font-size:0.7rem; color:var(--accent);">${esc(r.id)}</code>
+                                        </td>
+                                        <td>
+                                            <span class="badge" style="background:${getSeverityColor(r.severity)}; color:#000; border: 1px solid rgba(0,0,0,0.05)">
+                                                ${r.severity}
+                                            </span>
+                                        </td>
+                                        <td class="text-muted" style="font-size:0.8rem; line-height:1.5;">
+                                            ${esc(r.description)}
+                                        </td>
+                                    </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>`;
+                
+                <div style="margin-top:1.5rem; padding:1rem; background:var(--accent-soft); border-radius:var(--radius); display:flex; gap:12px; align-items:center;">
+                    <i class="fas fa-info-circle" style="color:var(--accent); font-size:1.2rem;"></i>
+                    <p style="font-size:0.75rem; color:var(--text-main); margin:0;">
+                        <strong>Note:</strong> These rules are built into the Audit Engine core. You can enable or disable them individually for each cluster in the <strong>Policy Editor</strong> section.
+                    </p>
+                </div>
+            `;
+        } catch (e) { 
+            toast(e.message, 'error'); 
+            renderAudit(); 
+        }
+    }
+
+        // Apre la configurazione specifica per un cluster (GET /rules/{cluster_id})
+    async function configureClusterRules(clusterId) {
+        const main = document.getElementById('mainContent');
+        
+        // Show a clean loading state that occupies the entire content area
+        main.innerHTML = loadingHtml(`Loading policies for ${clusterId}...`);
+        
+        try {
+            // Fetch current rules configuration for the specific cluster
+            const rulesConfig = await adminRequest(`/audit/rules/${clusterId}`);
+
+            // Overwrite the entire mainContent to remove previous headers and summary cards
+            main.innerHTML = `
+                <div class="page-header">
+                    <div>
+                        <div class="page-title">
+                            <i class="fas fa-sliders-h" style="color:var(--accent); margin-right:8px;"></i>
+                            Policy Editor: ${clusterId}
+                        </div>
+                        <div class="page-desc">Configure active compliance rules and enforcement for this specific cluster.</div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn-small" style="border-color:var(--warning); color:var(--warning)" onclick="resetRules('${clusterId}')">
+                            <i class="fas fa-undo"></i> Reset to Defaults
+                        </button>
+                        <button class="btn-primary" onclick="renderAudit()">
+                            <i class="fas fa-arrow-left"></i> Back to Results
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width:25%">Audit Rule</th>
+                                <th style="width:45%">Description / Notes</th>
+                                <th style="width:15%">Status</th>
+                                <th style="text-align:right; width:15%">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rulesConfig.map(rule => `
+                                <tr>
+                                    <td>
+                                        <div style="font-weight:700; color:var(--text-main);">${esc(rule.name)}</div>
+                                        <span class="badge" style="font-size:0.55rem; margin-top:4px; background:${getSeverityColor(rule.severity)}">
+                                            ${rule.severity}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div style="font-size:0.75rem; color:var(--text-muted); line-height:1.4;">
+                                            ${esc(rule.description)}
+                                        </div>
+                                        ${rule.note ? `
+                                            <div style="margin-top:8px; padding:6px 10px; background:var(--accent-soft); border-left:3px solid var(--accent); border-radius:4px; font-size:0.7rem; color:var(--accent);">
+                                                <i class="fas fa-comment-alt"></i> <strong>Note:</strong> ${esc(rule.note)}
+                                            </div>
+                                        ` : ''}
+                                    </td>
+                                    <td>
+                                        <span class="status-pill ${rule.enabled ? 'status-online' : 'status-offline'}">
+                                            ${rule.enabled ? 'Active' : 'Disabled'}
+                                        </span>
+                                    </td>
+                                    <td style="text-align:right">
+                                        <button class="${rule.enabled ? 'btn-danger-sm' : 'btn-edit-sm'}" 
+                                                onclick="toggleRule('${clusterId}', '${rule.id}', ${rule.enabled})">
+                                            <i class="fas ${rule.enabled ? 'fa-ban' : 'fa-check'}"></i> 
+                                            ${rule.enabled ? 'Disable' : 'Enable'}
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } catch (e) { 
+            toast(e.message, 'error'); 
+            renderAudit(); 
+        }
+    }
+
+    // Aggiorna lo stato di una regola (PATCH /rules/{cluster_id}/{rule_id})
+    async function toggleRule(clusterId, ruleId, currentStatus) {
+        const note = currentStatus ? prompt("Motivazione della disabilitazione (opzionale):") : null;
+        try {
+            await adminRequest(`/audit/rules/${clusterId}/${ruleId}`, 'PATCH', {
+                enabled: !currentStatus,
+                note: note
+            });
+            toast(`Rule ${ruleId} updated`, 'success');
+            configureClusterRules(clusterId); // Ricarica la vista
+        } catch (e) { toast(e.message, 'error'); }
+    }
+
+    // Resetta le regole al default (POST /rules/{cluster_id}/reset)
+    async function resetRules(clusterId) {
+        if (!confirm(`Reset all rules for ${clusterId} to default (Enabled)?`)) return;
+        try {
+            await adminRequest(`/audit/rules/${clusterId}/reset`, 'POST');
+            toast('Configuration reset', 'success');
+            configureClusterRules(clusterId);
+        } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function loadAuditResults() {
+        const area = document.getElementById('auditResultsArea');
+        area.innerHTML = loadingHtml('Calculating compliance scores...');
+        try {
+            const data = await adminRequest('/audit/results'); // GET /results
+            renderAuditDashboard(data);
+        } catch (e) {
+            area.innerHTML = emptyHtml('Audit Engine error: ' + e.message, 'fa-bug');
+        }
+    }
+
+    async function refreshAuditData() {
+        toast('Force fleet rescan & auditing...', 'success');
+        const area = document.getElementById('auditResultsArea');
+        area.innerHTML = loadingHtml('Connecting to clusters for fresh audit...');
+        try {
+            const data = await adminRequest('/audit/results/refresh', 'POST'); // POST /results/refresh
+            renderAuditDashboard(data);
+            toast('Fleet Audit synchronized', 'success');
+        } catch (e) { toast(e.message, 'error'); loadAuditResults(); }
     }
 
     function auditCard(name, desc, tag) {
         return `<div class="audit-card"><div class="audit-card-head"><div class="audit-card-name">${name}</div><span class="${tag === 'planned' ? 'tag-planned' : 'tag-roadmap'}">${tag === 'planned' ? 'Planned' : 'Roadmap'}</span></div><div class="audit-card-desc">${desc}</div></div>`;
+    }
+
+    function renderAuditDashboard(data) {
+        const mainArea = document.getElementById('auditResultsArea');
+        const summaryArea = document.getElementById('auditSummary');
+        const s = data.summary;
+
+        // 1. Summary Cards (Sempre pulite e informative)
+        summaryArea.innerHTML = `
+            <div class="summary-row">
+                <div class="summary-card">
+                    <div class="summary-icon si-blue"><i class="fas fa-chart-line"></i></div>
+                    <div><div class="summary-val">${s.avg_score_pct}%</div><div class="summary-lbl">Global Compliance</div></div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon si-green"><i class="fas fa-shield"></i></div>
+                    <div><div class="summary-val">${s.fully_compliant}/${s.total_clusters}</div><div class="summary-lbl">Fully Compliant</div></div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon si-purple"><i class="fas fa-tasks"></i></div>
+                    <div><div class="summary-val">${s.passed_findings}</div><div class="summary-lbl">Passed Rules</div></div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon si-red"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div><div class="summary-val">${s.critical_failures}</div><div class="summary-lbl">Critical Risks</div></div>
+                </div>
+            </div>`;
+
+        if (!data.results || data.results.length === 0) {
+            mainArea.innerHTML = emptyHtml('No audit results found.', 'fa-shield-alt');
+            return;
+        }
+
+        // 2. Tabella Fleet Compliance
+        mainArea.innerHTML = `
+            <div class="card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Cluster</th>
+                            <th>Score</th>
+                            <th>Findings Status</th>
+                            <th style="text-align:right">Management</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.results.map(r => {
+                            const isPerfect = r.score === r.total && r.total > 0;
+                            return `
+                            <tr>
+                                <td>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span style="font-weight:700; color:var(--text-main);">${esc(r.cluster_id)}</span>
+                                        <span style="font-size:0.7rem; color:var(--text-muted);">${esc(r.cluster_name)}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <span class="badge-id" style="background:${isPerfect ? 'var(--success-bg)' : 'var(--danger-bg)'}; color:${isPerfect ? 'var(--success)' : 'var(--danger)'}; border:none;">
+                                            ${r.score}/${r.total}
+                                        </span>
+                                        <div style="width:60px; height:6px; background:#edf1fb; border-radius:10px; overflow:hidden;">
+                                            <div style="width:${(r.score/r.total)*100}%; height:100%; background:${isPerfect ? 'var(--success)' : 'var(--danger)'};"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                                        ${renderMiniStatus(r.findings)}
+                                    </div>
+                                </td>
+                                <td style="text-align:right">
+                                    <div class="table-actions">
+                                        <button class="btn-edit-sm" onclick="configureClusterRules('${r.cluster_id}')" title="Modify Policies">
+                                            <i class="fas fa-sliders-h"></i> Rules
+                                        </button>
+                                        <button class="btn-small" onclick="runSingleAudit('${r.cluster_id}')" title="Analyze Now">
+                                            <i class="fas fa-microscope"></i>
+                                        </button>
+                                        <button class="btn-small" onclick="toggleFindingsDetail('${r.cluster_id}')" title="View Issues">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr id="details-${r.cluster_id}" style="display:none; background:#fafbfe;">
+                                <td colspan="4" style="padding: 0 20px 20px 20px;">
+                                    <div style="border: 1px solid var(--border); border-radius: 8px; background: white; margin-top: 10px; overflow: hidden;">
+                                        ${renderFindingsTable(r.findings)}
+                                    </div>
+                                </td>
+                            </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // Genera i pallini colorati per un colpo d'occhio rapido
+    function renderMiniStatus(findings) {
+        if (!findings.length) return '<span style="color:var(--text-dim); font-size:0.7rem;">No rules</span>';
+        return findings.map(f => `
+            <div title="${f.rule_id}: ${f.message}" 
+                style="width:8px; height:8px; border-radius:50%; background:${f.passed ? 'var(--success)' : 'var(--danger)'}; opacity: 0.8;">
+            </div>
+        `).join('');
+    }
+
+    // Tabella dettagliata dei problemi (nascosta di default)
+    function renderFindingsTable(findings) {
+        return `
+            <table class="data-table" style="box-shadow:none; border:none; width:100%;">
+                <thead style="background:#f4f7fd;">
+                    <tr>
+                        <th style="font-size:0.55rem; padding:8px 15px;">Rule ID</th>
+                        <th style="font-size:0.55rem; padding:8px 15px;">Severity</th>
+                        <th style="font-size:0.55rem; padding:8px 15px;">Message</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${findings.filter(f => !f.passed).map(f => `
+                        <tr>
+                            <td style="font-size:0.75rem; font-weight:600; color:var(--danger);">${esc(f.rule_id)}</td>
+                            <td><span class="badge" style="font-size:0.6rem; background:${getSeverityColor(f.severity)}">${f.severity}</span></td>
+                            <td style="font-size:0.75rem; color:var(--text-muted);">${esc(f.message)}</td>
+                        </tr>
+                    `).join('') || '<tr><td colspan="3" style="text-align:center; padding:15px; color:var(--success); font-weight:600; font-size:0.8rem;"><i class="fas fa-check-circle"></i> No issues found for this cluster</td></tr>'}
+                </tbody>
+            </table>
+        `;
+    }
+
+    function toggleFindingsDetail(id) {
+        const el = document.getElementById(`details-${id}`);
+        el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
+    }
+
+    async function runSingleAudit(cid) {
+        toast(`Auditing cluster ${cid}...`, 'success');
+        try {
+            const data = await adminRequest(`/audit/results/${cid}`);
+            toast(`Audit complete for ${cid}`, 'success');
+            // Qui potresti aggiornare solo quella card se avessi Alpine, 
+            // ma con Vanilla facciamo un reload completo dei dati
+            loadAuditResults(); 
+        } catch (e) { toast(e.message, 'error'); }
     }
 
     // ── OBSERVERS ──
@@ -980,6 +1323,15 @@
     }
 
     // ── UTILS ──
+    function getSeverityColor(sev) {
+        const colors = {
+            critical: '#fee2e2', // Red 100
+            high:     '#ffedd5', // Orange 100
+            medium:   '#fef9c3', // Yellow 100
+            low:      '#f0fdf4'  // Green 100
+        };
+        return colors[sev] || '#f4f7fd';
+    }
     function esc(s) { if (s == null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     function loadingHtml(msg) { return `<div class="loading-box"><div class="minimal-spinner"></div><div class="loading-text">${msg}</div></div>`; }
     function emptyHtml(msg, icon = 'fa-inbox') { return `<div class="empty-box"><i class="fas ${icon}"></i><p>${esc(msg)}</p></div>`; }
