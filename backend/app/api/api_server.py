@@ -12,6 +12,7 @@ from app.api.routes.k8s_routes import router as k8s_router
 from app.api.routes.helm_routes import router as helm_router
 from app.api.auth.auth_route import auth_router
 from app.api.routes.admin_routes import admin_router
+from app.api.routes.audit_routes import audit_router
 from app.infrastructure.database import init_db
 from app.core.fleet_manager import FleetManager
 
@@ -95,5 +96,6 @@ def create_app() -> FastAPI:
     
     # Rotte Administrative
     app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin Operations"])
+    app.include_router(audit_router, prefix="/api/v1/admin/audit", tags=["Audit Operations"])
 
     return app
