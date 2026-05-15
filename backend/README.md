@@ -19,7 +19,8 @@
 11. [Timeout & Concurrency Strategy](#11-timeout--concurrency-strategy)
 12. [Error Propagation](#12-error-propagation)
 13. [Admin API](#13-admin-api)
-14. [Security Design Decisions](#14-security-design-decisions)
+14. [Compliance Audit System](#14-compliance-audit-system)
+15. [Security Design Decisions](#15-security-design-decisions)
 
 ---
 
@@ -57,6 +58,7 @@ app.include_router(auth_router,  prefix="/api/v1/auth",  tags=["auth"])
 app.include_router(k8s_router,   prefix="/api/v1",       tags=["k8s"])
 app.include_router(helm_router,  prefix="/api/v1/helm",  tags=["helm"])
 app.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])
+app.include_router(admin_router, prefix="/api/v1/admin/audit", tags=["audit"])
 ```
 
 All K8s and Helm routes go through FastAPI's dependency injection system. No middleware intercepts requests globally — authentication is enforced per-route via `Depends`.
@@ -68,7 +70,7 @@ All K8s and Helm routes go through FastAPI's dependency injection system. No mid
 The gateway uses **SQLite** via SQLAlchemy. The database is auto-created on first run at the path defined by `DATABASE_URL`.
 
 ```mermaid
-erDiagram
+ClusterDiagram
     CLUSTER {
         string id PK
         string name
@@ -663,7 +665,120 @@ Deleting a cluster cascades to all associated profiles via the database foreign 
 
 ---
 
-## 14. Security Design Decisions
+## 14. Compliance Audit System
+
+```
+app/core/audit_engine.py
+app/api/routes/audit_routes.py
+app/infrastructure/database.py   ← AuditRuleConfig model
+app/infrastructure/cluster_scanner.py  ← data source
+```
+
+The audit system is a lightweight compliance engine that evaluates policy rules against cluster snapshots collected by the Fleet Observer. It is entirely read-side at evaluation time: no additional K8s API calls are made when the audit runs — it operates on data already present in the `FleetManager` cache.
+
+### Data Flow
+
+```mermaid
+graph LR
+    Scanner["cluster_scanner.py<br/>scan_all_clusters()"] -->|fleet snapshot| Cache["FleetManager._cache<br/>(in-memory list)"]
+    Cache --> Engine["audit_engine.py<br/>run_audit()"]
+    DB[("audit_rule_configs<br/>SQLite")] -->|enabled/disabled per cluster| Engine
+    Engine --> Results["Structured findings<br/>per cluster"]
+    Results --> Route["GET /audit/results<br/>GET /audit/results/{id}<br/>POST /audit/results/refresh"]
+```
+
+### Rule Registry
+
+Rules are defined as `AuditRule` dataclass instances registered in `RULE_REGISTRY` — a plain Python dict keyed by rule ID. Adding a new rule requires no database migration:
+
+```python
+# 1. Write an evaluate function
+def _eval_my_rule(cluster: dict) -> AuditFinding:
+    ...
+    return AuditFinding(passed=True, detail="All good.")
+
+# 2. Register the rule
+AuditRule(
+    id="my-rule",
+    name="My Rule",
+    description="What this checks and why it matters.",
+    severity="warning",          # critical | warning | info
+    needs={"nodes"},             # which snapshot keys this rule reads
+    evaluate=_eval_my_rule,
+)
+```
+
+The `needs` field is metadata for the scanner: it declares which cluster snapshot keys the rule depends on. As the scanner is extended to collect more data (e.g. RBAC bindings, pod security contexts), `needs` allows the system to fetch only what the active rules for a given cluster actually require.
+
+### Per-Cluster Configuration & Default-On Logic
+
+The `audit_rule_configs` table stores explicit overrides only. The engine's resolution logic is:
+
+```
+rule_id in DB for this cluster AND enabled=False  →  rule is DISABLED
+rule_id not in DB for this cluster                →  rule is ENABLED (default-on)
+rule_id in DB for this cluster AND enabled=True   →  rule is ENABLED
+```
+
+This means a freshly registered cluster automatically receives the full audit suite with zero configuration. An admin only needs to interact with the DB to *disable* something, not to enable it.
+
+### Offline Cluster Handling
+
+Clusters in `status=offline` receive only the `cluster-reachable` rule. All other rules are skipped. This prevents a flood of false-positive failures (e.g. `all-nodes-ready` failing because there are no nodes to check) when a cluster is simply unreachable. The finding for `cluster-reachable` carries the original connection error as `detail` and `evidence`.
+
+### Audit Result Schema
+
+```python
+{
+    "cluster_id":   str,
+    "cluster_name": str,
+    "status":       str,          # "online" | "offline" | "degraded"
+    "score":        int,          # number of rules passed
+    "total":        int,          # number of rules evaluated
+    "score_pct":    float,        # passed / total * 100
+    "findings": [
+        {
+            "rule_id":   str,
+            "rule_name": str,
+            "severity":  str,     # "critical" | "warning" | "info"
+            "passed":    bool,
+            "detail":    str,     # human-readable result description
+            "evidence":  dict,    # structured data for UI drill-down
+        }
+    ]
+}
+```
+
+The `evidence` dict is rule-specific. Examples:
+
+| Rule | Evidence keys |
+|---|---|
+| `all-nodes-ready` | `not_ready_nodes: list[str]`, `total_nodes: int` |
+| `k8s-version-policy` | `outdated_nodes: list[{node, version}]`, `min_required: str` |
+| `pod-health-ratio` | `pods_running: int`, `pods_total: int`, `ratio_pct: float` |
+| `os-homogeneity` | `os_distribution: dict[node_name, os]` |
+
+### Summary Aggregation
+
+`GET /audit/results` and `POST /audit/results/refresh` include a top-level `summary` object computed by `_build_summary()` in `audit_routes.py`:
+
+```python
+{
+    "total_clusters":    int,   # clusters evaluated
+    "fully_compliant":   int,   # clusters where score == total
+    "total_findings":    int,   # sum of all evaluated rules across fleet
+    "passed_findings":   int,
+    "failed_findings":   int,
+    "critical_failures": int,   # failed findings with severity == "critical"
+    "avg_score_pct":     float  # fleet-wide compliance percentage
+}
+```
+
+This is used by the Admin Console frontend to populate the summary cards at the top of the Audit Results page.
+
+---
+
+## 15. Security Design Decisions
 
 ### Why no k8s_token in the JWT?
 
@@ -695,3 +810,4 @@ Helm reads credentials from a kubeconfig file. Passing credentials via environme
 ### Why `--repository-config` per cluster instead of shared?
 
 Helm's default `repositories.yaml` at `~/.config/helm/repositories.yaml` is a single file. In a multi-cluster gateway, a repository added by a user of Cluster A would be immediately visible to users of Cluster B. Passing `--repository-config /tmp/helm_repos/{cluster_id}/repositories.yaml` gives each cluster its own isolated repository namespace at the cost of one additional CLI flag per subprocess invocation.
+
