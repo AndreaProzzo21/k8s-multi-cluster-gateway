@@ -1,4 +1,4 @@
-# Kubernetes Multi-Cluster Access Gateway
+# Integrated Framework for Multi-Cluster Kubernetes Governance: Secure Helm Distribution and RBAC-driven Orchestration.
 
 > A zero-knowledge, multi-tenant Kubernetes management platform. Credentials never leave the server — users get access, not keys.
 
