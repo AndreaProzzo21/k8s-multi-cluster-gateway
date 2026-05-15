@@ -160,14 +160,10 @@ sequenceDiagram
 
 ## Admin Console & API
 
-The platform infrastructure (Clusters and Profiles) is managed through a **dedicated Admin Console**.
+The platform infrastructure is managed through a **dedicated Admin Console** accessible at `http://localhost/admin.html`.
 
-- **Access**: `http://localhost/admin.html`
-- **Authentication**: Requires the `ADMIN_MASTER_KEY` defined in your `.env` file.
-- **Features**: Register new clusters, manage access profiles, and monitor the **Global Fleet Health** (real-time status of all connected clusters).
-
-### API Reference
-Cluster and profile management is protected by a master key sent in the `X-Admin-Key` HTTP header.
+- **Authentication**: Requires the `ADMIN_MASTER_KEY` defined in your `.env` file, sent as the `X-Admin-Key` HTTP header.
+- **Features**: Register clusters, manage access profiles, monitor the **Global Fleet Health**, and configure the **Compliance Audit** system.
 
 ```
 Base path: /api/v1/admin
@@ -192,29 +188,49 @@ Header:    X-Admin-Key: <ADMIN_MASTER_KEY>
 | `PATCH` | `/profiles/{profile_id}` | Update password or SA token |
 | `DELETE` | `/profiles/{profile_id}` | Remove a profile |
 
-**Register a cluster (example):**
+### Compliance Audit
+
+The gateway includes a lightweight **policy-based compliance engine** that runs checks against all registered clusters using data collected by the Fleet Observer. Rules operate on already-fetched data — no additional K8s calls are made at audit time.
+
+**How it works:**
+1. The Fleet Observer scans all clusters in the background every 60 seconds, collecting nodes, namespaces, pod stats, and version info.
+2. The audit engine evaluates a set of built-in rules against this snapshot.
+3. Results are available instantly from the cache — or on-demand via a forced refresh.
+
+**Rule configuration is per-cluster.** All rules are enabled by default (*default-on*). An admin can selectively disable rules for specific clusters (e.g. disable `worker-nodes-present` for a single-node dev cluster) and optionally add a note explaining the exception.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/audit/rules` | List all available compliance rules with description and severity |
+| `GET` | `/audit/rules/{cluster_id}` | View rule configuration (enabled/disabled) for a specific cluster |
+| `PATCH` | `/audit/rules/{cluster_id}/{rule_id}` | Enable or disable a rule for a cluster, with optional note |
+| `POST` | `/audit/rules/{cluster_id}/reset` | Reset all rule config for a cluster to default (all enabled) |
+| `GET` | `/audit/results` | Run audit on entire fleet using cached fleet data |
+| `GET` | `/audit/results/{cluster_id}` | Run audit on a single cluster |
+| `POST` | `/audit/results/refresh` | Force fresh fleet scan then return audit results |
+
+**Built-in rules:**
+
+| Rule ID | Severity | What it checks |
+|---|---|---|
+| `cluster-reachable` | 🔴 critical | API server responds — prerequisite for all other rules |
+| `all-nodes-ready` | 🔴 critical | No node in NotReady state |
+| `control-plane-present` | 🔴 critical | At least one Control Plane node identified |
+| `no-failed-pods` | 🟡 warning | No pods in Failed state |
+| `pod-health-ratio` | 🟡 warning | ≥ 80% of pods Running |
+| `worker-nodes-present` | 🟡 warning | At least one Worker node schedulable |
+| `k8s-version-policy` | 🟡 warning | All nodes running K8s ≥ 1.28 |
+| `os-homogeneity` | 🟡 warning | All nodes running the same OS |
+| `user-namespaces-present` | 🔵 info | At least one non-system namespace exists |
+| `namespace-count-reasonable` | 🔵 info | User namespace count ≤ 50 |
+
+**Disable a rule for a specific cluster (example):**
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/admin/clusters \
-  -H "X-Admin-Key: your-admin-key" \
-  -F "id=MY-CLUSTER" \
-  -F "name=Production K3s" \
-  -F "host=https://10.0.0.1:6443" \
-  -F "ca_file=@/path/to/ca.crt"
-```
-
-**Register a profile (example):**
-
-```bash
-curl -X POST http://localhost:8000/api/v1/admin/profiles \
+curl -X PATCH http://localhost:8000/api/v1/admin/audit/rules/DIPI-1/worker-nodes-present \
   -H "X-Admin-Key: your-admin-key" \
   -H "Content-Type: application/json" \
-  -d '{
-    "cluster_id": "MY-CLUSTER",
-    "name": "dev",
-    "gateway_password": "dev-password",
-    "k8s_token": "eyJhbGci..."
-  }'
+  -d '{"enabled": false, "note": "Single-node dev cluster — no workers by design"}'
 ```
 
 ---
@@ -407,3 +423,6 @@ Available at [`http://localhost:8000/docs`](http://localhost:8000/docs) when the
 - [ ] Multi-user audit log
 - [ ] OCI registry support for Helm chart distribution
 - [ ] Helm dependency resolution (`helm dependency update`) before ZIP deploy
+
+---
+
