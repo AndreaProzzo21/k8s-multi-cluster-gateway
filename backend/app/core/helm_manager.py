@@ -486,43 +486,31 @@ class HelmManager:
     # Repository
     # ---------------------------------------------------------------------------
 
-    async def repo_add(self, name: str, url: str) -> dict:
+    async def repo_add(self, name: str, url: str, username: str = None, password: str = None) -> dict:
         """
-        Aggiunge un repository Helm.
-
-        Usa ``--force-update`` per aggiornare l'URL se il repo esiste già
-        con un URL diverso, invece di fallire.
-
-        Parameters
-        ----------
-        name : str
-            Nome locale del repo (es. ``"bitnami"``).
-        url : str
-            URL del repository (es. ``"https://charts.bitnami.com/bitnami"``).
-
-        Returns
-        -------
-        dict
-            Risultato con stdout del messaggio di conferma.
+        Aggiunge un repository Helm con supporto opzionale all'autenticazione.
         """
-        return await self._run(
-            "repo", "add", name, url, "--force-update",
-            timeout=TIMEOUT_REPO,
-        )
+        args = ["repo", "add", name, url, "--force-update"]
+        
+        if username and password:
+            # Aggiungiamo le credenziali al comando binario
+            args.extend(["--username", username, "--password", password])
+            # Nota: --pass-credentials permette di salvare la configurazione 
+            # in modo che helm repo update possa riutilizzarle
+            args.append("--pass-credentials")
 
-    async def repo_update(self) -> dict:
+        return await self._run(*args, timeout=TIMEOUT_REPO)
+
+    async def repo_update(self, name: str = None) -> dict:
         """
-        Aggiorna l'indice di tutti i repository configurati.
-
-        Equivalente a ``helm repo update``. Da eseguire dopo ``repo_add``
-        per rendere disponibili i chart del nuovo repository.
-
-        Returns
-        -------
-        dict
-            Risultato con stdout del messaggio di aggiornamento.
+        Aggiorna l'indice dei repository configurati.
+        Se 'name' è fornito, aggiorna solo quel repository specifico.
         """
-        return await self._run("repo", "update", timeout=TIMEOUT_REPO)
+        args = ["repo", "update"]
+        if name:
+            args.append(name)
+            
+        return await self._run(*args, timeout=TIMEOUT_REPO)
 
     async def repo_list(self) -> dict:
         """

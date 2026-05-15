@@ -311,26 +311,32 @@ async def list_repos(
 
 @router.post("/repos", status_code=status.HTTP_200_OK)
 async def add_repo(
-    name: str = Query(..., description="Nome locale del repository (es. 'bitnami')"),
+    name: str = Query(..., description="Nome locale del repository"),
     url: str = Query(..., description="URL del repository Helm"),
+    username: str = Query(None, description="Username opzionale (es. 'gitlab-token')"),
+    password: str = Query(None, description="Token/Password opzionale"),
     manager: HelmManager = Depends(get_helm_manager),
 ):
     """
-    Aggiunge un repository Helm.
-    Se esiste già con URL diverso lo aggiorna (--force-update).
+    Aggiunge un repository Helm. 
+    Supporta l'autenticazione per repository privati (GitLab, GitHub, etc).
     """
-    result = await manager.repo_add(name, url)
+    result = await manager.repo_add(name, url, username, password)
     return _require_success(result, f"helm repo add {name}")
-
 
 @router.post("/repos/update", status_code=status.HTTP_200_OK)
 async def update_repos(
+    name: str = Query(None, description="Nome opzionale del repository specifico da aggiornare"),
     manager: HelmManager = Depends(get_helm_manager),
 ):
-    """Aggiorna l'indice locale di tutti i repository configurati."""
-    result = await manager.repo_update()
-    return _require_success(result, "helm repo update")
-
+    """
+    Aggiorna l'indice locale dei repository. 
+    Se viene fornito un nome, aggiorna solo quel repository, altrimenti li aggiorna tutti.
+    """
+    result = await manager.repo_update(name)
+    
+    msg = f"helm repo update {name}" if name else "helm repo update (all)"
+    return _require_success(result, msg)
 
 @router.delete("/repos/{name}", status_code=status.HTTP_200_OK)
 async def remove_repo(
