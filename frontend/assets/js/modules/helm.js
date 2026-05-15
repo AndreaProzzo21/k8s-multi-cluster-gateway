@@ -806,7 +806,7 @@ async function loadRepositories() {
             <div id="repo-action-result"></div>`;
 
         if (repos.length === 0) {
-            html += _helmEmpty("No repositories configured. Add a repository to start searching and deploying charts.");
+            html += _helmEmpty("No repositories configured.");
         } else {
             html += `
                 <table class="data-table">
@@ -823,24 +823,23 @@ async function loadRepositories() {
                 html += `
                     <tr>
                         <td><b>${r.name}</b></td>
-                        <td><code style="font-size:0.78rem; word-break:break-all;">${r.url}</code></td>
+                        <td><code style="font-size:0.78rem;">${r.url}</code></td>
                         <td style="text-align:right; white-space:nowrap;">
+                            <button onclick="updateRepos('${r.name}')" class="btn-small table-btn" title="Update only this repo" style="margin-right:5px;">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
                             <button onclick="searchInRepo('${r.name}')" class="btn-small table-btn" title="Search charts in this repo">
                                 <i class="fas fa-search"></i>
                             </button>
                         </td>
                     </tr>`;
             });
-
             html += '</tbody></table>';
         }
-
         html += '<div id="add-repo-panel"></div>';
         resArea.innerHTML = html;
-
     } catch (err) {
-        if (err.message === "RESTRICTED") renderRestrictedAccess();
-        else showError(err.message);
+        showError(err.message);
     }
 }
 
@@ -849,47 +848,103 @@ function showAddRepoForm() {
     if (!panel) return;
 
     panel.innerHTML = `
-        <div style="margin-top:20px; padding:20px; background:#f8fafc; border-radius:10px; border:1px solid var(--border);">
-            <b style="font-size:0.95rem; display:block; margin-bottom:14px;">
-                <i class="fas fa-plus" style="color:var(--accent); margin-right:8px;"></i>Add Repository
-            </b>
-            <div style="display:grid; grid-template-columns:1fr 2fr; gap:12px; margin-bottom:14px;">
-                <div>
-                    <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:5px;">Name *</label>
-                    <input type="text" id="repo_name" placeholder="bitnami"
-                        style="width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem; box-sizing:border-box;">
+        <div class="repo-form-card">
+            <div class="repo-form-header">
+                <i class="fas fa-database"></i>
+                <h3 style="margin:0; font-size:1.1rem; color:var(--text-main);">Add New Repository</h3>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 2fr; gap:15px; margin-bottom: 5px;">
+                <div class="form-group">
+                    <label class="label-small" style="margin-left:12px;">Local Name</label>
+                    <input type="text" id="repo_name" placeholder="e.g. gitlab-charts" class="input-modern">
+                    <small style="color:var(--text-muted); font-size:0.65rem; margin-left:12px; display:block; margin-top:4px;">Identifier for your cluster</small>
                 </div>
-                <div>
-                    <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; display:block; margin-bottom:5px;">URL *</label>
-                    <input type="text" id="repo_url" placeholder="https://charts.bitnami.com/bitnami"
-                        style="width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem; box-sizing:border-box;">
+                <div class="form-group">
+                    <label class="label-small" style="margin-left:12px;">Repository URL</label>
+                    <input type="text" id="repo_url" placeholder="https://gitlab.io/my-repo" class="input-modern">
+                    <small style="color:var(--text-muted); font-size:0.65rem; margin-left:12px; display:block; margin-top:4px;">Official URL of the Helm index</small>
                 </div>
             </div>
-            <div style="display:flex; gap:10px;">
-                <button onclick="submitAddRepo()" class="btn-action">
-                    <i class="fas fa-save"></i> Save Repository
-                </button>
-                <button onclick="document.getElementById('add-repo-panel').innerHTML=''"
-                        class="btn-action" style="background:var(--bg-light); color:var(--text-primary);">
+
+            <div class="auth-switch-container">
+                <label style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; margin:0;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <i class="fas fa-shield-alt" id="auth_icon" style="color:#94a3b8; transition: color 0.3s;"></i>
+                        <span style="font-size:0.85rem; font-weight:600; color:var(--text-main);">Private Repository (Auth)</span>
+                    </div>
+                    <input type="checkbox" id="auth_toggle" onchange="toggleAuthFields(this.checked)" 
+                           style="width:18px; height:18px; cursor:pointer; accent-color:var(--accent);">
+                </label>
+                
+                <div id="auth_fields" style="max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s ease-in-out; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div style="padding-top:15px;">
+                        <label class="label-small" style="margin-left:12px;">Username</label>
+                        <input type="text" id="repo_user" placeholder="gitlab-token" class="input-modern">
+                    </div>
+                    <div style="padding-top:15px;">
+                        <label class="label-small" style="margin-left:12px;">Access Token</label>
+                        <input type="password" id="repo_pass" placeholder="••••••••" class="input-modern">
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content: flex-end; gap:12px; margin-top:10px;">
+                <button onclick="document.getElementById('add-repo-panel').innerHTML=''" class="btn-modal-cancel">
                     Cancel
                 </button>
+                <button onclick="submitAddRepo()" class="btn-modal-primary">
+                    <i class="fas fa-save" style="margin-right:8px;"></i> Save Repository
+                </button>
             </div>
-            <div id="add-repo-result" style="margin-top:12px;"></div>
+            
+            <div id="add-repo-result" style="margin-top:15px;"></div>
         </div>`;
-
+    
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/**
+ * Gestisce l'animazione e lo stile dei campi autenticazione
+ */
+function toggleAuthFields(show) {
+    const fields = document.getElementById('auth_fields');
+    const icon = document.getElementById('auth_icon');
+    
+    if (show) {
+        fields.style.maxHeight = '150px'; // Ridotto per essere più compatto
+        fields.style.opacity = '1';
+        fields.style.marginTop = '5px';
+        if(icon) icon.style.color = 'var(--accent)';
+    } else {
+        fields.style.maxHeight = '0';
+        fields.style.opacity = '0';
+        fields.style.marginTop = '0';
+        if(icon) icon.style.color = '#94a3b8';
+    }
 }
 
 async function submitAddRepo() {
     const name = document.getElementById('repo_name')?.value?.trim();
     const url  = document.getElementById('repo_url')?.value?.trim();
-    if (!name || !url) { alert("Both name and URL are required."); return; }
+    const useAuth = document.getElementById('auth_toggle').checked;
+    
+    if (!name || !url) { showError("Both name and URL are required."); return; }
+
+    let queryParams = `?name=${encodeURIComponent(name)}&url=${encodeURIComponent(url)}`;
+    
+    if (useAuth) {
+        const user = document.getElementById('repo_user').value.trim();
+        const pass = document.getElementById('repo_pass').value.trim();
+        queryParams += `&username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}`;
+    }
 
     const resultDiv = document.getElementById('add-repo-result');
     resultDiv.innerHTML = _helmSpinner();
 
     try {
-        const result = await _helmPost('/helm/repos', { name, url });
+        // Usiamo l'endpoint con i query params aggiornati
+        const result = await _helmPost(`/helm/repos${queryParams}`);
         resultDiv.innerHTML = _renderResultBox(result, `Repository "${name}" added successfully.`);
         if (result.success) {
             setTimeout(() => loadRepositories(), 1500);
@@ -899,14 +954,21 @@ async function submitAddRepo() {
     }
 }
 
-async function updateRepos() {
-    const btn = document.getElementById('btnUpdateRepos');
+async function updateRepos(repoName = null) {
+    // Se repoName è null, aggiorna tutto, altrimenti solo quella specifica
+    const btn = repoName ? null : document.getElementById('btnUpdateRepos');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...'; }
+    
+    const url = repoName ? `/helm/repos/update?name=${encodeURIComponent(repoName)}` : '/helm/repos/update';
 
     try {
-        const result = await _helmPost('/helm/repos/update');
-        const resultDiv = document.getElementById('repo-action-result');
-        if (resultDiv) resultDiv.innerHTML = _renderResultBox(result, "All repositories updated successfully.");
+        const result = await _helmPost(url);
+        if (repoName) {
+            showSuccess(`Repository "${repoName}" updated.`);
+        } else {
+            const resultDiv = document.getElementById('repo-action-result');
+            if (resultDiv) resultDiv.innerHTML = _renderResultBox(result, "All repositories updated successfully.");
+        }
     } catch (err) {
         showError(err.message);
     } finally {
