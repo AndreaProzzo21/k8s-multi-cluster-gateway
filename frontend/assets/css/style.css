@@ -1092,6 +1092,107 @@ button[onclick*="deleteDeploy"]:hover { background: #e53535; color: #fff; border
     transform: scale(0.93);
 }
 
+/* Container del Form più rifinito */
+.repo-form-card {
+    margin-top: 24px;
+    padding: 28px;
+    background: white;
+    border-radius: 20px; /* Molto più arrotondato */
+    border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 15px 35px -5px rgba(0,0,0,0.07);
+    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Header del Form */
+.repo-form-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.repo-form-header i {
+    background: linear-gradient(135deg, var(--accent), #5c85ff);
+    color: white;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px; /* Tondeggiante ma squadrato per contrasto */
+}
+
+.input-modern {
+    padding: 8px 15px !important; /* Ridotto il padding verticale */
+    border-radius: 20px !important; 
+    border: 1px solid var(--border) !important;
+    font-size: 0.82rem !important; /* Testo leggermente più piccolo */
+    transition: all 0.2s ease;
+    background: #fdfdfd;
+    width: 100%;
+    box-sizing: border-box; /* FONDAMENTALE: include padding nel calcolo della larghezza */
+}
+
+.input-modern:focus {
+    outline: none;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 4px rgba(50, 108, 229, 0.1) !important;
+    background: white;
+}
+
+/* Auth Toggle Switch moderno */
+.auth-switch-container {
+    background: #f8fafc;
+    padding: 15px 20px;
+    border-radius: 18px; /* Tondeggiante */
+    border: 1px solid var(--border);
+    margin: 20px 0;
+    transition: all 0.3s ease;
+}
+
+.auth-switch-container:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+/* Bottoni principali tondeggianti */
+.btn-modal-primary {
+    background: var(--accent);
+    color: white;
+    padding: 12px 28px !important;
+    border-radius: 30px !important; /* Pill shape */
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(50, 108, 229, 0.2);
+}
+
+.btn-modal-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(50, 108, 229, 0.3);
+    filter: brightness(1.1);
+}
+
+/* Bottoni di cancellazione tondeggianti */
+.btn-modal-cancel { background: #fff; border: 1.5px solid var(--border); color: var(--text-muted); border-radius: 30px; padding: 12px 24px; font-size: 0.83rem; font-weight: 500; font-family: inherit; cursor: pointer; transition: 0.18s; }
+.btn-modal-cancel:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Checkbox più grande e stondata */
+#auth_toggle {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--accent); /* Colore del check */
+    cursor: pointer;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
 /* Impedisce alla tabella di uscire dallo sfondo */
 .data-table {
     width: 100%;
