@@ -257,12 +257,15 @@ k8s-cloud-gateway/
 │       │   │   ├── get_core_manager.py           # builds CoreManager
 │       │   │   └── get_helm_manager.py           # builds HelmManager + kubeconfig lifecycle
 │       │   ├── routes/
+│       │   |   ├── audit_routes.py           # Audit endpoints
 │       │   |   ├── k8s_routes.py            # K8s resource endpoints
 │       │   |   ├── helm_routes.py           # Helm endpoints
 │       │   |   └── admin_routes.py          # Cluster & profile management and overview
 |       |   |__ api_server.py                # API init and settings
 |       |
 │       ├── core/
+|       |   ├── audit_engine.py              # Compliance engine
+|       |   ├── fleet_manager.py             # Cluster fleet manager
 │       │   ├── core_manager.py              # K8s operations
 │       │   ├── helm_manager.py              # Helm operations
 |       |   ├── registry.py
