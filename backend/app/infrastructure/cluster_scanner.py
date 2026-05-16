@@ -130,9 +130,9 @@ async def _scan_single_cluster(cfg: dict) -> dict:
         # --- LOGICA DI ELABORAZIONE ---
         ns_with_quota = {q.get("namespace") for q in quotas if isinstance(q, dict)}
         
-pod_running = sum(1 for p in pods if p.get("status") == "Running")
-pod_failed = sum(1 for p in pods if p.get("status") == "Failed")
-pod_pending = sum(1 for p in pods if p.get("status") == "Pending")
+        pod_running = sum(1 for p in pods if p.get("status") == "Running")
+        pod_failed = sum(1 for p in pods if p.get("status") == "Failed")
+        pod_pending = sum(1 for p in pods if p.get("status") == "Pending")
         
         services_lb = sum(1 for s in services if s.get("type") == "LoadBalancer")
         single_replicas = sum(1 for d in deployments if d.get("replicas") == 1)
