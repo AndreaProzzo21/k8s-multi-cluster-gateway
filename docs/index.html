@@ -1,14 +1,52 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>K8s Multi-Cluster Gateway - API Docs</title>
+    <title>K8s Governance Gateway | Open API Documentation</title>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="https://kubernetes.io/images/favicon.png">
     <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
-    <style>body { margin: 0; padding: 0; }</style>
+
+    <style>
+      body { margin: 0; padding: 0; font-family: 'Roboto', sans-serif; }
+      /* Navbar superiore per dare un tocco professionale */
+      .nav-header {
+        background-color: #2c3e50;
+        color: white;
+        padding: 10px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      }
+      .nav-header a {
+        color: #3498db;
+        text-decoration: none;
+        font-weight: bold;
+        margin-left: 20px;
+      }
+      .nav-header h1 { font-size: 18px; margin: 0; font-family: 'Montserrat', sans-serif; }
+    </style>
   </head>
   <body>
-    <redoc spec-url='./openapi.json'></redoc>
+    <header class="nav-header">
+      <h1>K8s Cloud Gateway <span style="font-weight: 300; font-size: 0.8em;">v2.1.0</span></h1>
+      <div>
+        <a href="https://github.com/andreaprozzo21/k8s-cloud-gateway">GitHub Repo</a>
+        <a href="https://github.com/andreaprozzo21/k8s-cloud-gateway/blob/main/README.md">Guida Installazione</a>
+      </div>
+    </header>
+
+    <redoc spec-url='./openapi.json' 
+           expand-responses="200,201" 
+           hide-hostname="false" 
+           required-props-first="true"
+           theme='{
+             "colors": { "primary": { "main": "#2c3e50" } },
+             "typography": { "fontFamily": "Roboto", "headings": { "fontFamily": "Montserrat" } }
+           }'>
+    </redoc>
+
     <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"> </script>
   </body>
 </html>

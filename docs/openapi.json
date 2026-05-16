@@ -1,1 +1,3877 @@
-{"openapi":"3.1.0","info":{"title":"K8S Cloud Gateway","description":"Integrated Framework for Multi-Cluster Kubernetes Governance","version":"1.0.0"},"paths":{"/api/v1/auth/login":{"post":{"tags":["Authentication"],"summary":"Login","description":"Riceve l'ID del cluster e il profilo richiesto.\nSe la password è corretta, restituisce un JWT che impacchetta \nle credenziali K8s di quel profilo specifico.","operationId":"login_api_v1_auth_login_post","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Body_login_api_v1_auth_login_post"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/cluster/health":{"get":{"tags":["Kubernetes Operations"],"summary":"Cluster Health","description":"Verifica la connettività al cluster via /version (nessun permesso RBAC richiesto).\nUsato dal frontend post-login prima di mostrare la dashboard.","operationId":"cluster_health_api_v1_cluster_health_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}},"security":[{"HTTPBearer":[]}]}},"/api/v1/namespaces/{name}":{"post":{"tags":["Kubernetes Operations"],"summary":"Create New Namespace","description":"Crea un nuovo namespace nel cluster.","operationId":"create_new_namespace_api_v1_namespaces__name__post","security":[{"HTTPBearer":[]}],"parameters":[{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"201":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["Kubernetes Operations"],"summary":"Delete Cluster Namespace","description":"Rimuove un namespace dal cluster.\nAttenzione: l'operazione è distruttiva per tutte le risorse nel namespace.","operationId":"delete_cluster_namespace_api_v1_namespaces__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces":{"get":{"tags":["Kubernetes Operations"],"summary":"Get All Namespaces","description":"Elenca i namespace del cluster.\nRestituisce always HTTP 200: il campo 'can_list' indica se il profilo\nha i permessi per listare (False = accesso negato, lista vuota).","operationId":"get_all_namespaces_api_v1_namespaces_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}},"security":[{"HTTPBearer":[]}]}},"/api/v1/namespaces/{namespace}/configmaps":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Configmaps","description":"Elenca le ConfigMap nel namespace specificato.","operationId":"get_configmaps_api_v1_namespaces__namespace__configmaps_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/secrets":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Secrets","description":"Elenca i Secret nel namespace specificato (solo nome, tipo e chiavi — mai i valori).","operationId":"get_secrets_api_v1_namespaces__namespace__secrets_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/events":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Events","description":"Elenca gli eventi Kubernetes nel namespace, ordinati per timestamp decrescente.","operationId":"get_events_api_v1_namespaces__namespace__events_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/pods":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Pods","description":"Elenca i Pod nel namespace.\nSupporta il filtro opzionale per label tramite query string\n(es. ?label_selector=app=nginx).","operationId":"get_pods_api_v1_namespaces__namespace__pods_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"label_selector","in":"query","required":false,"schema":{"type":"string","title":"Label Selector"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/pods/{name}":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Pod Details","description":"Restituisce i dettagli di un singolo Pod.","operationId":"get_pod_details_api_v1_namespaces__namespace__pods__name__get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["Kubernetes Operations"],"summary":"Delete Pod","description":"Elimina un Pod. Kubernetes ricrea automaticamente il Pod se gestito da un controller.","operationId":"delete_pod_api_v1_namespaces__namespace__pods__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/pods/{name}/logs":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Pod Logs","description":"Restituisce gli ultimi N log di un Pod come testo plain.\nIl parametro `tail` controlla quante righe vengono restituite (default 100, max 5000).","operationId":"get_pod_logs_api_v1_namespaces__namespace__pods__name__logs_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}},{"name":"tail","in":"query","required":false,"schema":{"type":"integer","maximum":5000,"minimum":1,"description":"Numero di righe di log da restituire (1-5000)","default":100,"title":"Tail"},"description":"Numero di righe di log da restituire (1-5000)"}],"responses":{"200":{"description":"Successful Response","content":{"text/plain":{"schema":{"type":"string"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/deployments":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Deployments","description":"Elenca i Deployment nel namespace.\nSupporta il filtro opzionale per label tramite query string.","operationId":"get_deployments_api_v1_namespaces__namespace__deployments_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"label_selector","in":"query","required":false,"schema":{"type":"string","title":"Label Selector"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/deployments/{name}":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Deployment Details","description":"Restituisce i dettagli di un singolo Deployment, incluse repliche e immagine.","operationId":"get_deployment_details_api_v1_namespaces__namespace__deployments__name__get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["Kubernetes Operations"],"summary":"Delete Deployment","description":"Elimina un Deployment dal namespace.","operationId":"delete_deployment_api_v1_namespaces__namespace__deployments__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/deployments/{name}/scale":{"patch":{"tags":["Kubernetes Operations"],"summary":"Scale Deployment","description":"Scala un Deployment al numero di repliche specificato.\nPassare replicas=0 sospende il deployment senza eliminarlo.","operationId":"scale_deployment_api_v1_namespaces__namespace__deployments__name__scale_patch","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}},{"name":"replicas","in":"query","required":true,"schema":{"type":"integer","minimum":0,"description":"Numero di repliche desiderate (>= 0)","title":"Replicas"},"description":"Numero di repliche desiderate (>= 0)"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/deployments/{name}/restart":{"post":{"tags":["Kubernetes Operations"],"summary":"Restart Deploy","description":"Esegue un rollout restart del Deployment iniettando un'annotazione con il timestamp.\nEquivalente a `kubectl rollout restart deployment/<name>`.","operationId":"restart_deploy_api_v1_namespaces__namespace__deployments__name__restart_post","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/services":{"get":{"tags":["Kubernetes Operations"],"summary":"List Services","description":"Elenca i Service nel namespace con tipo, ClusterIP e timestamp di creazione.","operationId":"list_services_api_v1_namespaces__namespace__services_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/services/{name}":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Service Details","description":"Restituisce i dettagli di un Service, incluse porte e selettori.","operationId":"get_service_details_api_v1_namespaces__namespace__services__name__get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["Kubernetes Operations"],"summary":"Delete Service","description":"Elimina un Service dal namespace.","operationId":"delete_service_api_v1_namespaces__namespace__services__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/apply":{"post":{"tags":["Kubernetes Operations"],"summary":"Apply Resource","description":"Applica un manifesto YAML multi-risorsa in modo indipendente.\nIl namespace viene letto direttamente dal file YAML. \nSe assente, K8s userà il default o restituirà errore in base ai permessi.","operationId":"apply_resource_api_v1_apply_post","requestBody":{"content":{"multipart/form-data":{"schema":{"$ref":"#/components/schemas/Body_apply_resource_api_v1_apply_post"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}},"security":[{"HTTPBearer":[]}]}},"/api/v1/namespaces/{namespace}/configmaps/{name}":{"delete":{"tags":["Kubernetes Operations"],"summary":"Delete Configmap","description":"Elimina una ConfigMap dal namespace.","operationId":"delete_configmap_api_v1_namespaces__namespace__configmaps__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/secrets/{name}":{"delete":{"tags":["Kubernetes Operations"],"summary":"Delete Secret","description":"Elimina un Secret dal namespace.","operationId":"delete_secret_api_v1_namespaces__namespace__secrets__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/cluster/nodes":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Cluster Nodes","description":"Restituisce i dettagli tecnici dei nodi del cluster: CPU, memoria,\nversione kubelet, OS e ruolo (Control Plane / Worker).\nRichiede permessi di Cluster Admin sul Service Account.","operationId":"get_cluster_nodes_api_v1_cluster_nodes_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"type":"object"},"type":"array","title":"Response Get Cluster Nodes Api V1 Cluster Nodes Get"}}}}},"security":[{"HTTPBearer":[]}]}},"/api/v1/namespaces/{namespace}/serviceaccounts":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Sas","description":"Elenca i ServiceAccount nel namespace.","operationId":"get_sas_api_v1_namespaces__namespace__serviceaccounts_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/serviceaccounts/{name}":{"delete":{"tags":["Kubernetes Operations"],"summary":"Del Sa","description":"Elimina un ServiceAccount dal namespace.","operationId":"del_sa_api_v1_namespaces__namespace__serviceaccounts__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/roles":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Roles","description":"Elenca i Role nel namespace con il numero di regole associate.","operationId":"get_roles_api_v1_namespaces__namespace__roles_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/roles/{name}":{"delete":{"tags":["Kubernetes Operations"],"summary":"Del Role","description":"Elimina un Role dal namespace.","operationId":"del_role_api_v1_namespaces__namespace__roles__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/rolebindings":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Bindings","description":"Elenca i RoleBinding nel namespace con role e subject associati.","operationId":"get_bindings_api_v1_namespaces__namespace__rolebindings_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/rolebindings/{name}":{"delete":{"tags":["Kubernetes Operations"],"summary":"Del Binding","description":"Elimina un RoleBinding dal namespace.","operationId":"del_binding_api_v1_namespaces__namespace__rolebindings__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/ingress":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Ingress List","description":"Elenca gli Ingress nel namespace con host, indirizzi e timestamp di creazione.","operationId":"get_ingress_list_api_v1_namespaces__namespace__ingress_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/ingress/{name}":{"delete":{"tags":["Kubernetes Operations"],"summary":"Delete Ingress Resource","description":"Elimina una risorsa Ingress dal namespace.","operationId":"delete_ingress_resource_api_v1_namespaces__namespace__ingress__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/cluster/volumes":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Persistent Volumes","description":"Risorsa a livello di Cluster: PV.","operationId":"get_persistent_volumes_api_v1_cluster_volumes_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}},"security":[{"HTTPBearer":[]}]}},"/api/v1/namespaces/{namespace}/pvc":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Namespaced Pvc","description":"Risorsa a livello di Namespace: PVC.","operationId":"get_namespaced_pvc_api_v1_namespaces__namespace__pvc_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/pvc/{name}":{"delete":{"tags":["Kubernetes Operations"],"summary":"Delete Pvc","description":"Elimina un PVC specifico.","operationId":"delete_pvc_api_v1_namespaces__namespace__pvc__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/cluster/storage-classes":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Storage Classes","operationId":"get_storage_classes_api_v1_cluster_storage_classes_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}},"security":[{"HTTPBearer":[]}]}},"/api/v1/namespaces/{namespace}/statefulsets":{"get":{"tags":["Kubernetes Operations"],"summary":"Get Stateful Sets","description":"Recupera gli StatefulSet, opzionalmente filtrati per label.","operationId":"get_stateful_sets_api_v1_namespaces__namespace__statefulsets_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"label_selector","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Label Selector"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/namespaces/{namespace}/statefulsets/{name}":{"delete":{"tags":["Kubernetes Operations"],"summary":"Delete Stateful Set","description":"Elimina uno StatefulSet specifico.","operationId":"delete_stateful_set_api_v1_namespaces__namespace__statefulsets__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/cluster/storage-classes/{name}":{"delete":{"tags":["Kubernetes Operations"],"summary":"Delete Cluster Storage Class","description":"Elimina una StorageClass specifica a livello di cluster.","operationId":"delete_cluster_storage_class_api_v1_cluster_storage_classes__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/namespaces/{namespace}/releases":{"get":{"tags":["Helm Management"],"summary":"List Helm Releases","description":"Elenca le release Helm nel namespace specificato.\n\nRisposta in caso di successo:\n    { \"success\": true, \"data\": [ ...releases... ] }\nLista vuota se il namespace esiste ma non ha release:\n    { \"success\": true, \"data\": [] }\nHTTP 403 se il SA non ha permessi sui Secret del namespace.","operationId":"list_helm_releases_api_v1_helm_namespaces__namespace__releases_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/namespaces/{namespace}/releases/{release_name}/status":{"get":{"tags":["Helm Management"],"summary":"Get Release Status","description":"Restituisce stato dettagliato, manifest e note di una release.\nHTTP 400 se la release non esiste.","operationId":"get_release_status_api_v1_helm_namespaces__namespace__releases__release_name__status_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"release_name","in":"path","required":true,"schema":{"type":"string","title":"Release Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/namespaces/{namespace}/releases/{release_name}/history":{"get":{"tags":["Helm Management"],"summary":"Get Release History","description":"Restituisce la cronologia delle revisioni di una release.\nHTTP 400 se la release non esiste.","operationId":"get_release_history_api_v1_helm_namespaces__namespace__releases__release_name__history_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"release_name","in":"path","required":true,"schema":{"type":"string","title":"Release Name"}},{"name":"max","in":"query","required":false,"schema":{"type":"integer","maximum":100,"minimum":1,"description":"Numero massimo di revisioni da restituire","default":10,"title":"Max"},"description":"Numero massimo di revisioni da restituire"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/namespaces/{namespace}/releases/{release_name}/values":{"get":{"tags":["Helm Management"],"summary":"Get Release Values","description":"Restituisce i valori applicati alla release.\nCon all=false: solo i valori di override (quelli passati con -f o --set).\nCon all=true: tutti i valori, compresi i default del chart.","operationId":"get_release_values_api_v1_helm_namespaces__namespace__releases__release_name__values_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"release_name","in":"path","required":true,"schema":{"type":"string","title":"Release Name"}},{"name":"all","in":"query","required":false,"schema":{"type":"boolean","description":"Se true, include anche i valori di default del chart","default":false,"title":"All"},"description":"Se true, include anche i valori di default del chart"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/namespaces/{namespace}/releases/{release_name}":{"post":{"tags":["Helm Management"],"summary":"Install Or Upgrade Chart","description":"Installa o aggiorna una release Helm (``helm upgrade --install``).\nSe la release non esiste viene creata; se esiste viene aggiornata.","operationId":"install_or_upgrade_chart_api_v1_helm_namespaces__namespace__releases__release_name__post","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"release_name","in":"path","required":true,"schema":{"type":"string","title":"Release Name"}},{"name":"chart_ref","in":"query","required":true,"schema":{"type":"string","description":"Riferimento al chart: 'repo/chart' (es. bitnami/nginx), path locale, OCI URL","title":"Chart Ref"},"description":"Riferimento al chart: 'repo/chart' (es. bitnami/nginx), path locale, OCI URL"},{"name":"version","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Versione specifica del chart. Se omesso usa la latest.","title":"Version"},"description":"Versione specifica del chart. Se omesso usa la latest."},{"name":"create_namespace","in":"query","required":false,"schema":{"type":"boolean","description":"Il namespace viene recuperato. Se non esiste va creato da SA che ha il permesso e non indipendentemente.","default":false,"title":"Create Namespace"},"description":"Il namespace viene recuperato. Se non esiste va creato da SA che ha il permesso e non indipendentemente."},{"name":"atomic","in":"query","required":false,"schema":{"type":"boolean","description":"Rollback automatico se il deploy fallisce (--atomic)","default":false,"title":"Atomic"},"description":"Rollback automatico se il deploy fallisce (--atomic)"},{"name":"wait","in":"query","required":false,"schema":{"type":"boolean","description":"Attende che tutte le risorse siano Ready prima di rispondere (--wait)","default":false,"title":"Wait"},"description":"Attende che tutte le risorse siano Ready prima di rispondere (--wait)"},{"name":"timeout_seconds","in":"query","required":false,"schema":{"type":"integer","maximum":600,"minimum":10,"description":"Timeout per --wait/--atomic in secondi","default":300,"title":"Timeout Seconds"},"description":"Timeout per --wait/--atomic in secondi"}],"requestBody":{"content":{"application/json":{"schema":{"type":"object","description":"Valori di override (equivalente a -f values.yaml)","default":{},"title":"Values"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["Helm Management"],"summary":"Uninstall Release","description":"Rimuove una release Helm e tutte le risorse K8s gestite da essa.\nCon keep_history=true la storia rimane per permettere rollback.","operationId":"uninstall_release_api_v1_helm_namespaces__namespace__releases__release_name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"release_name","in":"path","required":true,"schema":{"type":"string","title":"Release Name"}},{"name":"keep_history","in":"query","required":false,"schema":{"type":"boolean","description":"Se true, preserva la storia della release per rollback futuri","default":false,"title":"Keep History"},"description":"Se true, preserva la storia della release per rollback futuri"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/namespaces/{namespace}/releases/{release_name}/from-zip":{"post":{"tags":["Helm Management"],"summary":"Install From Zip","description":"Installa un chart da archivio ZIP.\nIl file ZIP deve contenere una directory con ``Chart.yaml``.\nEsegue ``helm upgrade --install`` sul chart estratto.","operationId":"install_from_zip_api_v1_helm_namespaces__namespace__releases__release_name__from_zip_post","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"release_name","in":"path","required":true,"schema":{"type":"string","title":"Release Name"}},{"name":"values_json","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Valori di override come JSON string (es: '{\"replicaCount\": 2}')","title":"Values Json"},"description":"Valori di override come JSON string (es: '{\"replicaCount\": 2}')"},{"name":"atomic","in":"query","required":false,"schema":{"type":"boolean","default":false,"title":"Atomic"}},{"name":"wait","in":"query","required":false,"schema":{"type":"boolean","default":false,"title":"Wait"}},{"name":"create_namespace","in":"query","required":false,"schema":{"type":"boolean","default":false,"title":"Create Namespace"}}],"requestBody":{"required":true,"content":{"multipart/form-data":{"schema":{"$ref":"#/components/schemas/Body_install_from_zip_api_v1_helm_namespaces__namespace__releases__release_name__from_zip_post"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/namespaces/{namespace}/releases/{release_name}/rollback":{"post":{"tags":["Helm Management"],"summary":"Rollback Release","description":"Rollback di una release a una revisione specifica.\n``revision=0`` equivale a tornare alla revisione precedente.","operationId":"rollback_release_api_v1_helm_namespaces__namespace__releases__release_name__rollback_post","security":[{"HTTPBearer":[]}],"parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string","title":"Namespace"}},{"name":"release_name","in":"path","required":true,"schema":{"type":"string","title":"Release Name"}},{"name":"revision","in":"query","required":false,"schema":{"type":"integer","minimum":0,"description":"Revisione target. 0 = revisione precedente (comportamento nativo Helm)","default":0,"title":"Revision"},"description":"Revisione target. 0 = revisione precedente (comportamento nativo Helm)"},{"name":"wait","in":"query","required":false,"schema":{"type":"boolean","default":false,"title":"Wait"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/repos":{"get":{"tags":["Helm Management"],"summary":"List Repos","description":"Elenca i repository Helm configurati.\nRestituisce { \"success\": true, \"data\": [] } se nessun repo è configurato\n(helm repo list restituisce rc=1 in quel caso: normalizzato nel manager).","operationId":"list_repos_api_v1_helm_repos_get","security":[{"HTTPBearer":[]}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}},"post":{"tags":["Helm Management"],"summary":"Add Repo","description":"Aggiunge un repository Helm. \nSupporta l'autenticazione per repository privati (GitLab, GitHub, etc).","operationId":"add_repo_api_v1_helm_repos_post","security":[{"HTTPBearer":[]}],"parameters":[{"name":"name","in":"query","required":true,"schema":{"type":"string","description":"Nome locale del repository","title":"Name"},"description":"Nome locale del repository"},{"name":"url","in":"query","required":true,"schema":{"type":"string","description":"URL del repository Helm","title":"Url"},"description":"URL del repository Helm"},{"name":"username","in":"query","required":false,"schema":{"type":"string","description":"Username opzionale (es. 'gitlab-token')","title":"Username"},"description":"Username opzionale (es. 'gitlab-token')"},{"name":"password","in":"query","required":false,"schema":{"type":"string","description":"Token/Password opzionale","title":"Password"},"description":"Token/Password opzionale"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/repos/update":{"post":{"tags":["Helm Management"],"summary":"Update Repos","description":"Aggiorna l'indice locale dei repository. \nSe viene fornito un nome, aggiorna solo quel repository, altrimenti li aggiorna tutti.","operationId":"update_repos_api_v1_helm_repos_update_post","security":[{"HTTPBearer":[]}],"parameters":[{"name":"name","in":"query","required":false,"schema":{"type":"string","description":"Nome opzionale del repository specifico da aggiornare","title":"Name"},"description":"Nome opzionale del repository specifico da aggiornare"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/repos/{name}":{"delete":{"tags":["Helm Management"],"summary":"Remove Repo","description":"Rimuove un repository Helm per nome (``helm repo remove``).\n\nNon esposto nel frontend — utilizzabile via /docs.\nHTTP 404 se il repository non esiste.","operationId":"remove_repo_api_v1_helm_repos__name__delete","security":[{"HTTPBearer":[]}],"parameters":[{"name":"name","in":"path","required":true,"schema":{"type":"string","title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/charts/search":{"get":{"tags":["Helm Management"],"summary":"Search Charts","description":"Cerca chart nei repository configurati (helm search repo).\nHTTP 400 se nessun repository è configurato (helm restituisce errore).\nLista vuota se nessun chart corrisponde alla query.","operationId":"search_charts_api_v1_helm_charts_search_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"q","in":"query","required":true,"schema":{"type":"string","description":"Termine di ricerca (es. 'nginx', 'bitnami/redis')","title":"Q"},"description":"Termine di ricerca (es. 'nginx', 'bitnami/redis')"},{"name":"versions","in":"query","required":false,"schema":{"type":"boolean","description":"Mostra tutte le versioni disponibili del chart","default":false,"title":"Versions"},"description":"Mostra tutte le versioni disponibili del chart"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/charts/values":{"get":{"tags":["Helm Management"],"summary":"Get Chart Default Values","description":"Mostra i valori di default di un chart (helm show values).\nRestituisce YAML grezzo in ``stdout`` — non JSON.\nUsato dal frontend per mostrare i parametri configurabili prima del deploy.","operationId":"get_chart_default_values_api_v1_helm_charts_values_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"chart_ref","in":"query","required":true,"schema":{"type":"string","description":"Riferimento chart (es. 'bitnami/nginx', 'oci://registry/chart')","title":"Chart Ref"},"description":"Riferimento chart (es. 'bitnami/nginx', 'oci://registry/chart')"},{"name":"version","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Versione specifica. Se omesso usa la latest.","title":"Version"},"description":"Versione specifica. Se omesso usa la latest."}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/charts/lint":{"get":{"tags":["Helm Management"],"summary":"Lint Chart From Ref","description":"Esegue helm lint su un chart da repository.\nRestituisce sempre HTTP 200 con has_errors/has_warnings nel body —\nnon solleva eccezione su lint fallito (è un risultato, non un errore di sistema).","operationId":"lint_chart_from_ref_api_v1_helm_charts_lint_get","security":[{"HTTPBearer":[]}],"parameters":[{"name":"chart_ref","in":"query","required":true,"schema":{"type":"string","description":"Riferimento chart (es. 'bitnami/nginx')","title":"Chart Ref"},"description":"Riferimento chart (es. 'bitnami/nginx')"},{"name":"strict","in":"query","required":false,"schema":{"type":"boolean","description":"Tratta i warning come errori","default":false,"title":"Strict"},"description":"Tratta i warning come errori"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/helm/charts/lint-zip":{"post":{"tags":["Helm Management"],"summary":"Lint Chart From Zip","description":"Esegue helm lint su un chart fornito come ZIP.\nUtile per validare prima di eseguire install_from_zip.","operationId":"lint_chart_from_zip_api_v1_helm_charts_lint_zip_post","security":[{"HTTPBearer":[]}],"parameters":[{"name":"strict","in":"query","required":false,"schema":{"type":"boolean","default":false,"title":"Strict"}},{"name":"values_json","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Valori override come JSON string","title":"Values Json"},"description":"Valori override come JSON string"}],"requestBody":{"required":true,"content":{"multipart/form-data":{"schema":{"$ref":"#/components/schemas/Body_lint_chart_from_zip_api_v1_helm_charts_lint_zip_post"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/admin/clusters":{"post":{"tags":["Admin Operations"],"summary":"Add Cluster","operationId":"add_cluster_api_v1_admin_clusters_post","security":[{"APIKeyHeader":[]}],"requestBody":{"required":true,"content":{"multipart/form-data":{"schema":{"$ref":"#/components/schemas/Body_add_cluster_api_v1_admin_clusters_post"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"get":{"tags":["Admin Operations"],"summary":"List Clusters","operationId":"list_clusters_api_v1_admin_clusters_get","security":[{"APIKeyHeader":[]}],"parameters":[{"name":"search","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Search"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/admin/profiles":{"post":{"tags":["Admin Operations"],"summary":"Add Profile","operationId":"add_profile_api_v1_admin_profiles_post","security":[{"APIKeyHeader":[]}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ProfileCreate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"get":{"tags":["Admin Operations"],"summary":"List Profiles","operationId":"list_profiles_api_v1_admin_profiles_get","security":[{"APIKeyHeader":[]}],"parameters":[{"name":"cluster_id","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Cluster Id"}},{"name":"name","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/admin/clusters/{cluster_id}":{"delete":{"tags":["Admin Operations"],"summary":"Delete Cluster","operationId":"delete_cluster_api_v1_admin_clusters__cluster_id__delete","security":[{"APIKeyHeader":[]}],"parameters":[{"name":"cluster_id","in":"path","required":true,"schema":{"type":"string","title":"Cluster Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"patch":{"tags":["Admin Operations"],"summary":"Update Cluster","operationId":"update_cluster_api_v1_admin_clusters__cluster_id__patch","security":[{"APIKeyHeader":[]}],"parameters":[{"name":"cluster_id","in":"path","required":true,"schema":{"type":"string","title":"Cluster Id"}}],"requestBody":{"content":{"multipart/form-data":{"schema":{"allOf":[{"$ref":"#/components/schemas/Body_update_cluster_api_v1_admin_clusters__cluster_id__patch"}],"title":"Body"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/admin/profiles/{profile_id}":{"delete":{"tags":["Admin Operations"],"summary":"Delete Profile","operationId":"delete_profile_api_v1_admin_profiles__profile_id__delete","security":[{"APIKeyHeader":[]}],"parameters":[{"name":"profile_id","in":"path","required":true,"schema":{"type":"integer","title":"Profile Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"patch":{"tags":["Admin Operations"],"summary":"Update Profile","operationId":"update_profile_api_v1_admin_profiles__profile_id__patch","security":[{"APIKeyHeader":[]}],"parameters":[{"name":"profile_id","in":"path","required":true,"schema":{"type":"integer","title":"Profile Id"}}],"requestBody":{"content":{"application/json":{"schema":{"allOf":[{"$ref":"#/components/schemas/Body_update_profile_api_v1_admin_profiles__profile_id__patch"}],"title":"Body"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/admin/fleet/status":{"get":{"tags":["Admin Operations"],"summary":"Get Fleet Status","description":"Restituisce lo stato della flotta. \nSe refresh=true, forza una scansione immediata (lenta),\naltrimenti restituisce la cache (istantanea).","operationId":"get_fleet_status_api_v1_admin_fleet_status_get","security":[{"APIKeyHeader":[]}],"parameters":[{"name":"refresh","in":"query","required":false,"schema":{"type":"boolean","default":false,"title":"Refresh"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/admin/audit/rules":{"get":{"tags":["Audit Operations"],"summary":"Lista tutte le audit rules disponibili","description":"Restituisce il catalogo completo delle audit rules definite nel registry.\n\nNon dipende dal DB né dalla configurazione per-cluster — è il catalogo\nstatico delle regole implementate nel codice. Usato dal frontend per\ncostruire la UI di configurazione.\n\nResponse\n--------\nLista di oggetti con: id, name, description, severity, needs.","operationId":"list_all_rules_api_v1_admin_audit_rules_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}},"security":[{"APIKeyHeader":[]}]}},"/api/v1/admin/audit/rules/{cluster_id}":{"get":{"tags":["Audit Operations"],"summary":"Configurazione delle audit rules per un cluster","description":"Restituisce la configurazione di tutte le regole per il cluster specificato.\n\nPer ogni regola include:\n- ``enabled``: True se la regola è attiva (default) o se è stata\n  esplicitamente abilitata; False se è stata disabilitata dall'admin.\n- ``note``: motivazione opzionale della disabilitazione.\n\nLe regole senza configurazione esplicita nel DB appaiono con\n``enabled=True`` (logica default-on).\n\nParameters\n----------\ncluster_id : str\n    ID del cluster (es. \"K3S\", \"DIPI-1\"). Case-insensitive.","operationId":"get_cluster_rule_config_api_v1_admin_audit_rules__cluster_id__get","security":[{"APIKeyHeader":[]}],"parameters":[{"name":"cluster_id","in":"path","required":true,"schema":{"type":"string","title":"Cluster Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/admin/audit/rules/{cluster_id}/{rule_id}":{"patch":{"tags":["Audit Operations"],"summary":"Abilita o disabilita una regola per un cluster","description":"Abilita o disabilita una singola audit rule per un cluster (upsert).\n\nSe non esiste un record per (cluster_id, rule_id) lo crea.\nSe esiste già lo aggiorna. Il campo ``note`` è opzionale — se None\nviene mantenuto il valore precedente solo se il record esisteva;\nsu un nuovo record viene impostato a None.\n\nParameters\n----------\ncluster_id : str\n    ID del cluster target.\nrule_id : str\n    ID della regola da configurare. Deve esistere nel registry.\nenabled : bool\n    Stato desiderato della regola.\nnote : str | None\n    Motivazione opzionale della configurazione.\n\nRaises\n------\nHTTPException 404\n    Se ``rule_id`` non esiste nel registry.","operationId":"update_rule_config_api_v1_admin_audit_rules__cluster_id___rule_id__patch","security":[{"APIKeyHeader":[]}],"parameters":[{"name":"cluster_id","in":"path","required":true,"schema":{"type":"string","title":"Cluster Id"}},{"name":"rule_id","in":"path","required":true,"schema":{"type":"string","title":"Rule Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Body_update_rule_config_api_v1_admin_audit_rules__cluster_id___rule_id__patch"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/admin/audit/rules/{cluster_id}/reset":{"post":{"tags":["Audit Operations"],"summary":"Ripristina la configurazione default per un cluster","description":"Rimuove tutta la configurazione esplicita delle regole per il cluster,\nriportando ogni regola al suo stato default (enabled=True).\n\nQuesto non elimina il cluster né i profili — rimuove solo i record\ndella tabella ``audit_rule_configs`` per questo cluster.\n\nUtile quando:\n- Un cluster viene riconfigurato e si vuole ricominciare da zero.\n- La configurazione è diventata inconsistente e si vuole ripristinare.\n\nParameters\n----------\ncluster_id : str\n    ID del cluster da resettare.","operationId":"reset_cluster_rule_config_api_v1_admin_audit_rules__cluster_id__reset_post","security":[{"APIKeyHeader":[]}],"parameters":[{"name":"cluster_id","in":"path","required":true,"schema":{"type":"string","title":"Cluster Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/admin/audit/results":{"get":{"tags":["Audit Operations"],"summary":"Esegui l'audit su tutti i cluster della fleet","description":"Esegue le audit rules su tutti i cluster registrati usando i dati\ndella cache del FleetManager.\n\nSe la cache è vuota (primo avvio, container appena ripartito) forza\nuna scansione sincrona della fleet prima di procedere con l'audit.\nIn questo caso la risposta può richiedere alcuni secondi.\n\nLe regole disabilitate per un cluster non vengono eseguite (rispetta\nla configurazione in ``audit_rule_configs``).\n\nI cluster offline ricevono solo la regola ``cluster-reachable``,\nevitando falsi negativi per dati non disponibili.\n\nResponse\n--------\nLista di risultati per cluster con: cluster_id, cluster_name, status,\nscore (regole passate), total (regole valutate), score_pct, findings.","operationId":"get_audit_results_api_v1_admin_audit_results_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}},"security":[{"APIKeyHeader":[]}]}},"/api/v1/admin/audit/results/{cluster_id}":{"get":{"tags":["Audit Operations"],"summary":"Esegui l'audit su un singolo cluster","description":"Esegue le audit rules su un singolo cluster.\n\nFiltra i dati della cache per il cluster specificato.\nSe il cluster non è trovato nella cache, forza una scansione completa.\n\nParameters\n----------\ncluster_id : str\n    ID del cluster (es. \"DIPI-1\").\n\nRaises\n------\nHTTPException 404\n    Se il cluster non è trovato nel DB o nella cache.","operationId":"get_cluster_audit_result_api_v1_admin_audit_results__cluster_id__get","security":[{"APIKeyHeader":[]}],"parameters":[{"name":"cluster_id","in":"path","required":true,"schema":{"type":"string","title":"Cluster Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/admin/audit/results/refresh":{"post":{"tags":["Audit Operations"],"summary":"Forza una scansione della fleet e restituisce i risultati audit freschi","description":"Forza una scansione completa della fleet, aggiorna la cache del\nFleetManager e restituisce i risultati dell'audit sui dati freschi.\n\nA differenza di GET /results (che usa la cache), questa route\nesegue sempre chiamate reali ai cluster K8s. Può richiedere\ndiversi secondi in funzione del numero di cluster e della latenza.\n\nSide effect: aggiorna la cache globale del FleetManager, influenzando\nanche le successive chiamate a GET /fleet/status e GET /results.","operationId":"refresh_and_audit_api_v1_admin_audit_results_refresh_post","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}},"security":[{"APIKeyHeader":[]}]}}},"components":{"schemas":{"Body_add_cluster_api_v1_admin_clusters_post":{"properties":{"id":{"type":"string","title":"Id"},"name":{"type":"string","title":"Name"},"host":{"type":"string","title":"Host"},"ca_file":{"type":"string","format":"binary","title":"Ca File"}},"type":"object","required":["id","name","host"],"title":"Body_add_cluster_api_v1_admin_clusters_post"},"Body_apply_resource_api_v1_apply_post":{"properties":{"file":{"type":"string","format":"binary","title":"File"}},"type":"object","required":["file"],"title":"Body_apply_resource_api_v1_apply_post"},"Body_install_from_zip_api_v1_helm_namespaces__namespace__releases__release_name__from_zip_post":{"properties":{"file":{"type":"string","format":"binary","title":"File","description":"Archivio ZIP con il chart Helm (deve contenere Chart.yaml)"}},"type":"object","required":["file"],"title":"Body_install_from_zip_api_v1_helm_namespaces__namespace__releases__release_name__from_zip_post"},"Body_lint_chart_from_zip_api_v1_helm_charts_lint_zip_post":{"properties":{"file":{"type":"string","format":"binary","title":"File","description":"ZIP con il chart Helm"}},"type":"object","required":["file"],"title":"Body_lint_chart_from_zip_api_v1_helm_charts_lint_zip_post"},"Body_login_api_v1_auth_login_post":{"properties":{"cluster_id":{"type":"string","title":"Cluster Id"},"profile":{"type":"string","title":"Profile"},"password":{"type":"string","title":"Password"}},"type":"object","required":["cluster_id","profile","password"],"title":"Body_login_api_v1_auth_login_post"},"Body_update_cluster_api_v1_admin_clusters__cluster_id__patch":{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"host":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Host"},"ca_file":{"anyOf":[{"type":"string","format":"binary"},{"type":"null"}],"title":"Ca File"}},"type":"object","title":"Body_update_cluster_api_v1_admin_clusters__cluster_id__patch"},"Body_update_profile_api_v1_admin_profiles__profile_id__patch":{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"cluster_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Cluster Id"},"gateway_password":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Gateway Password"},"k8s_token":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"K8S Token"}},"type":"object","title":"Body_update_profile_api_v1_admin_profiles__profile_id__patch"},"Body_update_rule_config_api_v1_admin_audit_rules__cluster_id___rule_id__patch":{"properties":{"enabled":{"type":"boolean","title":"Enabled","description":"True per abilitare, False per disabilitare"},"note":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Note","description":"Motivazione opzionale (es. 'cluster di sviluppo — privileged pods accettati')"}},"type":"object","required":["enabled"],"title":"Body_update_rule_config_api_v1_admin_audit_rules__cluster_id___rule_id__patch"},"HTTPValidationError":{"properties":{"detail":{"items":{"$ref":"#/components/schemas/ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"},"ProfileCreate":{"properties":{"cluster_id":{"type":"string","title":"Cluster Id"},"name":{"type":"string","title":"Name"},"gateway_password":{"type":"string","title":"Gateway Password"},"k8s_token":{"type":"string","title":"K8S Token"}},"type":"object","required":["cluster_id","name","gateway_password","k8s_token"],"title":"ProfileCreate"},"ValidationError":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"}},"securitySchemes":{"HTTPBearer":{"type":"http","scheme":"bearer"},"APIKeyHeader":{"type":"apiKey","in":"header","name":"X-Admin-Key"}}}}
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "K8S Cloud Gateway",
+    "description": "Integrated Framework for Multi-Cluster Kubernetes Governance",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Login",
+        "description": "Receives the cluster ID and the requested profile.\nIf the password is correct, returns a JWT that wraps\nthe K8s credentials for that specific profile.",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_login_api_v1_auth_login_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cluster/health": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Cluster Health",
+        "description": "Checks cluster connectivity via /version (no RBAC permissions required).\nUsed by the frontend after login before displaying the dashboard.",
+        "operationId": "cluster_health_api_v1_cluster_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/namespaces/{name}": {
+      "post": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Create New Namespace",
+        "description": "Creates a new namespace in the cluster.",
+        "operationId": "create_new_namespace_api_v1_namespaces__name__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Delete Cluster Namespace",
+        "description": "Removes a namespace from the cluster.\nWarning: this operation is destructive for all resources inside the namespace.",
+        "operationId": "delete_cluster_namespace_api_v1_namespaces__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get All Namespaces",
+        "description": "Lists the namespaces in the cluster.\nAlways returns HTTP 200: the 'can_list' field indicates whether the profile\nhas permission to list (False = access denied, empty list).",
+        "operationId": "get_all_namespaces_api_v1_namespaces_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/namespaces/{namespace}/configmaps": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Configmaps",
+        "description": "Lists the ConfigMaps in the specified namespace.",
+        "operationId": "get_configmaps_api_v1_namespaces__namespace__configmaps_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/secrets": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Secrets",
+        "description": "Lists the Secrets in the specified namespace (name, type and keys only — values are never exposed).",
+        "operationId": "get_secrets_api_v1_namespaces__namespace__secrets_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/events": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Events",
+        "description": "Lists Kubernetes events in the namespace, sorted by descending timestamp.",
+        "operationId": "get_events_api_v1_namespaces__namespace__events_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/pods": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Pods",
+        "description": "Lists the Pods in the namespace.\nSupports optional label filtering via query string\n(e.g. ?label_selector=app=nginx).",
+        "operationId": "get_pods_api_v1_namespaces__namespace__pods_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "label_selector",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Label Selector"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/pods/{name}": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Pod Details",
+        "description": "Returns the details of a single Pod.",
+        "operationId": "get_pod_details_api_v1_namespaces__namespace__pods__name__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Delete Pod",
+        "description": "Deletes a Pod. Kubernetes automatically recreates the Pod if it is managed by a controller.",
+        "operationId": "delete_pod_api_v1_namespaces__namespace__pods__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/pods/{name}/logs": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Pod Logs",
+        "description": "Returns the last N log lines of a Pod as plain text.\nThe `tail` parameter controls how many lines are returned (default 100, max 5000).",
+        "operationId": "get_pod_logs_api_v1_namespaces__namespace__pods__name__logs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "tail",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 1,
+              "description": "Number of log lines to return (1-5000)",
+              "default": 100,
+              "title": "Tail"
+            },
+            "description": "Number of log lines to return (1-5000)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/deployments": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Deployments",
+        "description": "Lists the Deployments in the namespace.\nSupports optional label filtering via query string.",
+        "operationId": "get_deployments_api_v1_namespaces__namespace__deployments_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "label_selector",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Label Selector"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/deployments/{name}": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Deployment Details",
+        "description": "Returns the details of a single Deployment, including replicas and image.",
+        "operationId": "get_deployment_details_api_v1_namespaces__namespace__deployments__name__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Delete Deployment",
+        "description": "Deletes a Deployment from the namespace.",
+        "operationId": "delete_deployment_api_v1_namespaces__namespace__deployments__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/deployments/{name}/scale": {
+      "patch": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Scale Deployment",
+        "description": "Scales a Deployment to the specified number of replicas.\nPassing replicas=0 suspends the deployment without deleting it.",
+        "operationId": "scale_deployment_api_v1_namespaces__namespace__deployments__name__scale_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "replicas",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Desired number of replicas (>= 0)",
+              "title": "Replicas"
+            },
+            "description": "Desired number of replicas (>= 0)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/deployments/{name}/restart": {
+      "post": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Restart Deploy",
+        "description": "Performs a rollout restart of the Deployment by injecting a timestamp annotation.\nEquivalent to `kubectl rollout restart deployment/<name>`.",
+        "operationId": "restart_deploy_api_v1_namespaces__namespace__deployments__name__restart_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/services": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "List Services",
+        "description": "Lists the Services in the namespace with type, ClusterIP and creation timestamp.",
+        "operationId": "list_services_api_v1_namespaces__namespace__services_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/services/{name}": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Service Details",
+        "description": "Returns the details of a Service, including ports and selectors.",
+        "operationId": "get_service_details_api_v1_namespaces__namespace__services__name__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Delete Service",
+        "description": "Deletes a Service from the namespace.",
+        "operationId": "delete_service_api_v1_namespaces__namespace__services__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/apply": {
+      "post": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Apply Resource",
+        "description": "Applies a multi-resource YAML manifest independently.\nThe namespace is read directly from the YAML file.\nIf absent, K8s will use the default or return an error based on permissions.",
+        "operationId": "apply_resource_api_v1_apply_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_apply_resource_api_v1_apply_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/namespaces/{namespace}/configmaps/{name}": {
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Delete Configmap",
+        "description": "Deletes a ConfigMap from the namespace.",
+        "operationId": "delete_configmap_api_v1_namespaces__namespace__configmaps__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/secrets/{name}": {
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Delete Secret",
+        "description": "Deletes a Secret from the namespace.",
+        "operationId": "delete_secret_api_v1_namespaces__namespace__secrets__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cluster/nodes": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Cluster Nodes",
+        "description": "Returns technical details of the cluster nodes: CPU, memory,\nkubelet version, OS and role (Control Plane / Worker).\nRequires Cluster Admin permissions on the Service Account.",
+        "operationId": "get_cluster_nodes_api_v1_cluster_nodes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Get Cluster Nodes Api V1 Cluster Nodes Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/namespaces/{namespace}/serviceaccounts": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Sas",
+        "description": "Lists the ServiceAccounts in the namespace.",
+        "operationId": "get_sas_api_v1_namespaces__namespace__serviceaccounts_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/serviceaccounts/{name}": {
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Del Sa",
+        "description": "Deletes a ServiceAccount from the namespace.",
+        "operationId": "del_sa_api_v1_namespaces__namespace__serviceaccounts__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/roles": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Roles",
+        "description": "Lists the Roles in the namespace with the number of associated rules.",
+        "operationId": "get_roles_api_v1_namespaces__namespace__roles_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/roles/{name}": {
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Del Role",
+        "description": "Deletes a Role from the namespace.",
+        "operationId": "del_role_api_v1_namespaces__namespace__roles__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/rolebindings": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Bindings",
+        "description": "Lists the RoleBindings in the namespace with the associated role and subjects.",
+        "operationId": "get_bindings_api_v1_namespaces__namespace__rolebindings_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/rolebindings/{name}": {
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Del Binding",
+        "description": "Deletes a RoleBinding from the namespace.",
+        "operationId": "del_binding_api_v1_namespaces__namespace__rolebindings__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/ingress": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Ingress List",
+        "description": "Lists the Ingress resources in the namespace with host, addresses and creation timestamp.",
+        "operationId": "get_ingress_list_api_v1_namespaces__namespace__ingress_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/ingress/{name}": {
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Delete Ingress Resource",
+        "description": "Deletes an Ingress resource from the namespace.",
+        "operationId": "delete_ingress_resource_api_v1_namespaces__namespace__ingress__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cluster/volumes": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Persistent Volumes",
+        "description": "Cluster-level resource: PersistentVolumes (PV).",
+        "operationId": "get_persistent_volumes_api_v1_cluster_volumes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/namespaces/{namespace}/pvc": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Namespaced Pvc",
+        "description": "Namespace-level resource: PersistentVolumeClaims (PVC).",
+        "operationId": "get_namespaced_pvc_api_v1_namespaces__namespace__pvc_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/pvc/{name}": {
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Delete Pvc",
+        "description": "Deletes a specific PersistentVolumeClaim.",
+        "operationId": "delete_pvc_api_v1_namespaces__namespace__pvc__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cluster/storage-classes": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Storage Classes",
+        "description": "Lists all StorageClasses available at cluster level.",
+        "operationId": "get_storage_classes_api_v1_cluster_storage_classes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/namespaces/{namespace}/statefulsets": {
+      "get": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Get Stateful Sets",
+        "description": "Retrieves the StatefulSets, optionally filtered by label.",
+        "operationId": "get_stateful_sets_api_v1_namespaces__namespace__statefulsets_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "label_selector",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Label Selector"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/statefulsets/{name}": {
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Delete Stateful Set",
+        "description": "Deletes a specific StatefulSet.",
+        "operationId": "delete_stateful_set_api_v1_namespaces__namespace__statefulsets__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cluster/storage-classes/{name}": {
+      "delete": {
+        "tags": ["Kubernetes Operations"],
+        "summary": "Delete Cluster Storage Class",
+        "description": "Deletes a specific StorageClass at cluster level.",
+        "operationId": "delete_cluster_storage_class_api_v1_cluster_storage_classes__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/namespaces/{namespace}/releases": {
+      "get": {
+        "tags": ["Helm Management"],
+        "summary": "List Helm Releases",
+        "description": "Lists the Helm releases in the specified namespace.\n\nSuccess response:\n    { \"success\": true, \"data\": [ ...releases... ] }\nEmpty list if the namespace exists but has no releases:\n    { \"success\": true, \"data\": [] }\nHTTP 403 if the SA does not have permissions on the namespace Secrets.",
+        "operationId": "list_helm_releases_api_v1_helm_namespaces__namespace__releases_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/namespaces/{namespace}/releases/{release_name}/status": {
+      "get": {
+        "tags": ["Helm Management"],
+        "summary": "Get Release Status",
+        "description": "Returns the detailed status, manifest and notes of a release.\nHTTP 400 if the release does not exist.",
+        "operationId": "get_release_status_api_v1_helm_namespaces__namespace__releases__release_name__status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "release_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Release Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/namespaces/{namespace}/releases/{release_name}/history": {
+      "get": {
+        "tags": ["Helm Management"],
+        "summary": "Get Release History",
+        "description": "Returns the revision history of a release.\nHTTP 400 if the release does not exist.",
+        "operationId": "get_release_history_api_v1_helm_namespaces__namespace__releases__release_name__history_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "release_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Release Name"
+            }
+          },
+          {
+            "name": "max",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum number of revisions to return",
+              "default": 10,
+              "title": "Max"
+            },
+            "description": "Maximum number of revisions to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/namespaces/{namespace}/releases/{release_name}/values": {
+      "get": {
+        "tags": ["Helm Management"],
+        "summary": "Get Release Values",
+        "description": "Returns the values applied to the release.\nWith all=false: only the override values (those passed with -f or --set).\nWith all=true: all values, including the chart defaults.",
+        "operationId": "get_release_values_api_v1_helm_namespaces__namespace__releases__release_name__values_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "release_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Release Name"
+            }
+          },
+          {
+            "name": "all",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If true, also includes the chart default values",
+              "default": false,
+              "title": "All"
+            },
+            "description": "If true, also includes the chart default values"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/namespaces/{namespace}/releases/{release_name}": {
+      "post": {
+        "tags": ["Helm Management"],
+        "summary": "Install Or Upgrade Chart",
+        "description": "Installs or upgrades a Helm release (`helm upgrade --install`).\nIf the release does not exist it is created; if it exists it is upgraded.",
+        "operationId": "install_or_upgrade_chart_api_v1_helm_namespaces__namespace__releases__release_name__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "release_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Release Name"
+            }
+          },
+          {
+            "name": "chart_ref",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Chart reference: 'repo/chart' (e.g. bitnami/nginx), local path, OCI URL",
+              "title": "Chart Ref"
+            },
+            "description": "Chart reference: 'repo/chart' (e.g. bitnami/nginx), local path, OCI URL"
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Specific chart version. If omitted, the latest is used.",
+              "title": "Version"
+            },
+            "description": "Specific chart version. If omitted, the latest is used."
+          },
+          {
+            "name": "create_namespace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "The namespace is retrieved. If it does not exist it must be created by a SA that has the permission and not independently.",
+              "default": false,
+              "title": "Create Namespace"
+            },
+            "description": "The namespace is retrieved. If it does not exist it must be created by a SA that has the permission and not independently."
+          },
+          {
+            "name": "atomic",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Automatic rollback if the deployment fails (--atomic)",
+              "default": false,
+              "title": "Atomic"
+            },
+            "description": "Automatic rollback if the deployment fails (--atomic)"
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Waits for all resources to be Ready before responding (--wait)",
+              "default": false,
+              "title": "Wait"
+            },
+            "description": "Waits for all resources to be Ready before responding (--wait)"
+          },
+          {
+            "name": "timeout_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 600,
+              "minimum": 10,
+              "description": "Timeout for --wait/--atomic in seconds",
+              "default": 300,
+              "title": "Timeout Seconds"
+            },
+            "description": "Timeout for --wait/--atomic in seconds"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Override values (equivalent to -f values.yaml)",
+                "default": {},
+                "title": "Values"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Helm Management"],
+        "summary": "Uninstall Release",
+        "description": "Removes a Helm release and all K8s resources managed by it.\nWith keep_history=true the history is preserved to allow rollbacks.",
+        "operationId": "uninstall_release_api_v1_helm_namespaces__namespace__releases__release_name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "release_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Release Name"
+            }
+          },
+          {
+            "name": "keep_history",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If true, preserves the release history for future rollbacks",
+              "default": false,
+              "title": "Keep History"
+            },
+            "description": "If true, preserves the release history for future rollbacks"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/namespaces/{namespace}/releases/{release_name}/from-zip": {
+      "post": {
+        "tags": ["Helm Management"],
+        "summary": "Install From Zip",
+        "description": "Installs a chart from a ZIP archive.\nThe ZIP file must contain a directory with `Chart.yaml`.\nRuns `helm upgrade --install` on the extracted chart.",
+        "operationId": "install_from_zip_api_v1_helm_namespaces__namespace__releases__release_name__from_zip_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "release_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Release Name"
+            }
+          },
+          {
+            "name": "values_json",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Override values as a JSON string (e.g. '{\"replicaCount\": 2}')",
+              "title": "Values Json"
+            },
+            "description": "Override values as a JSON string (e.g. '{\"replicaCount\": 2}')"
+          },
+          {
+            "name": "atomic",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Atomic"
+            }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Wait"
+            }
+          },
+          {
+            "name": "create_namespace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Create Namespace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_install_from_zip_api_v1_helm_namespaces__namespace__releases__release_name__from_zip_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/namespaces/{namespace}/releases/{release_name}/rollback": {
+      "post": {
+        "tags": ["Helm Management"],
+        "summary": "Rollback Release",
+        "description": "Rolls back a release to a specific revision.\n`revision=0` is equivalent to reverting to the previous revision.",
+        "operationId": "rollback_release_api_v1_helm_namespaces__namespace__releases__release_name__rollback_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Namespace"
+            }
+          },
+          {
+            "name": "release_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Release Name"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Target revision. 0 = previous revision (native Helm behaviour)",
+              "default": 0,
+              "title": "Revision"
+            },
+            "description": "Target revision. 0 = previous revision (native Helm behaviour)"
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Wait"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/repos": {
+      "get": {
+        "tags": ["Helm Management"],
+        "summary": "List Repos",
+        "description": "Lists the configured Helm repositories.\nReturns { \"success\": true, \"data\": [] } if no repository is configured\n(helm repo list returns rc=1 in that case: normalised in the manager).",
+        "operationId": "list_repos_api_v1_helm_repos_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Helm Management"],
+        "summary": "Add Repo",
+        "description": "Adds a Helm repository.\nSupports authentication for private repositories (GitLab, GitHub, etc).",
+        "operationId": "add_repo_api_v1_helm_repos_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Local name of the repository",
+              "title": "Name"
+            },
+            "description": "Local name of the repository"
+          },
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "URL of the Helm repository",
+              "title": "Url"
+            },
+            "description": "URL of the Helm repository"
+          },
+          {
+            "name": "username",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional username (e.g. 'gitlab-token')",
+              "title": "Username"
+            },
+            "description": "Optional username (e.g. 'gitlab-token')"
+          },
+          {
+            "name": "password",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional token/password",
+              "title": "Password"
+            },
+            "description": "Optional token/password"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/repos/update": {
+      "post": {
+        "tags": ["Helm Management"],
+        "summary": "Update Repos",
+        "description": "Updates the local index of repositories.\nIf a name is provided, updates only that repository; otherwise updates all of them.",
+        "operationId": "update_repos_api_v1_helm_repos_update_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional name of the specific repository to update",
+              "title": "Name"
+            },
+            "description": "Optional name of the specific repository to update"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/repos/{name}": {
+      "delete": {
+        "tags": ["Helm Management"],
+        "summary": "Remove Repo",
+        "description": "Removes a Helm repository by name (`helm repo remove`).\n\nNot exposed in the frontend — available via /docs.\nHTTP 404 if the repository does not exist.",
+        "operationId": "remove_repo_api_v1_helm_repos__name__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/charts/search": {
+      "get": {
+        "tags": ["Helm Management"],
+        "summary": "Search Charts",
+        "description": "Searches for charts in the configured repositories (helm search repo).\nHTTP 400 if no repository is configured (helm returns an error).\nEmpty list if no chart matches the query.",
+        "operationId": "search_charts_api_v1_helm_charts_search_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Search term (e.g. 'nginx', 'bitnami/redis')",
+              "title": "Q"
+            },
+            "description": "Search term (e.g. 'nginx', 'bitnami/redis')"
+          },
+          {
+            "name": "versions",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Show all available versions of the chart",
+              "default": false,
+              "title": "Versions"
+            },
+            "description": "Show all available versions of the chart"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/charts/values": {
+      "get": {
+        "tags": ["Helm Management"],
+        "summary": "Get Chart Default Values",
+        "description": "Shows the default values of a chart (helm show values).\nReturns raw YAML in `stdout` — not JSON.\nUsed by the frontend to display configurable parameters before deployment.",
+        "operationId": "get_chart_default_values_api_v1_helm_charts_values_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chart_ref",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Chart reference (e.g. 'bitnami/nginx', 'oci://registry/chart')",
+              "title": "Chart Ref"
+            },
+            "description": "Chart reference (e.g. 'bitnami/nginx', 'oci://registry/chart')"
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Specific version. If omitted, the latest is used.",
+              "title": "Version"
+            },
+            "description": "Specific version. If omitted, the latest is used."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/charts/lint": {
+      "get": {
+        "tags": ["Helm Management"],
+        "summary": "Lint Chart From Ref",
+        "description": "Runs helm lint on a chart from a repository.\nAlways returns HTTP 200 with has_errors/has_warnings in the body —\ndoes not raise an exception on lint failure (it is a result, not a system error).",
+        "operationId": "lint_chart_from_ref_api_v1_helm_charts_lint_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chart_ref",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Chart reference (e.g. 'bitnami/nginx')",
+              "title": "Chart Ref"
+            },
+            "description": "Chart reference (e.g. 'bitnami/nginx')"
+          },
+          {
+            "name": "strict",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Treat warnings as errors",
+              "default": false,
+              "title": "Strict"
+            },
+            "description": "Treat warnings as errors"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/helm/charts/lint-zip": {
+      "post": {
+        "tags": ["Helm Management"],
+        "summary": "Lint Chart From Zip",
+        "description": "Runs helm lint on a chart provided as a ZIP archive.\nUseful for validation before running install_from_zip.",
+        "operationId": "lint_chart_from_zip_api_v1_helm_charts_lint_zip_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "strict",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Strict"
+            }
+          },
+          {
+            "name": "values_json",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Override values as a JSON string",
+              "title": "Values Json"
+            },
+            "description": "Override values as a JSON string"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_lint_chart_from_zip_api_v1_helm_charts_lint_zip_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/clusters": {
+      "post": {
+        "tags": ["Admin Operations"],
+        "summary": "Add Cluster",
+        "description": "Registers a new cluster in the gateway. Accepts the cluster ID, display name, API server host and an optional CA certificate file.",
+        "operationId": "add_cluster_api_v1_admin_clusters_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_add_cluster_api_v1_admin_clusters_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Admin Operations"],
+        "summary": "List Clusters",
+        "description": "Returns the list of clusters registered in the gateway. Supports optional filtering by name via the search query parameter.",
+        "operationId": "list_clusters_api_v1_admin_clusters_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/profiles": {
+      "post": {
+        "tags": ["Admin Operations"],
+        "summary": "Add Profile",
+        "description": "Creates a new access profile associated with a cluster. Each profile holds a gateway password and a K8s service account token.",
+        "operationId": "add_profile_api_v1_admin_profiles_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Admin Operations"],
+        "summary": "List Profiles",
+        "description": "Returns the list of access profiles. Supports optional filtering by cluster_id and/or profile name.",
+        "operationId": "list_profiles_api_v1_admin_profiles_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cluster Id"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/clusters/{cluster_id}": {
+      "delete": {
+        "tags": ["Admin Operations"],
+        "summary": "Delete Cluster",
+        "description": "Removes a cluster and all its associated profiles from the gateway.",
+        "operationId": "delete_cluster_api_v1_admin_clusters__cluster_id__delete",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Admin Operations"],
+        "summary": "Update Cluster",
+        "description": "Updates one or more fields of a registered cluster (name, host, CA certificate). Only provided fields are updated.",
+        "operationId": "update_cluster_api_v1_admin_clusters__cluster_id__patch",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Body_update_cluster_api_v1_admin_clusters__cluster_id__patch"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/profiles/{profile_id}": {
+      "delete": {
+        "tags": ["Admin Operations"],
+        "summary": "Delete Profile",
+        "description": "Removes an access profile from the gateway.",
+        "operationId": "delete_profile_api_v1_admin_profiles__profile_id__delete",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Admin Operations"],
+        "summary": "Update Profile",
+        "description": "Updates one or more fields of an access profile (name, cluster_id, gateway_password, k8s_token). Only provided fields are updated.",
+        "operationId": "update_profile_api_v1_admin_profiles__profile_id__patch",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Body_update_profile_api_v1_admin_profiles__profile_id__patch"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/fleet/status": {
+      "get": {
+        "tags": ["Admin Operations"],
+        "summary": "Get Fleet Status",
+        "description": "Returns the fleet status.\nIf refresh=true, forces an immediate scan (slow);\notherwise returns the cached result (instant).",
+        "operationId": "get_fleet_status_api_v1_admin_fleet_status_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Refresh"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit/rules": {
+      "get": {
+        "tags": ["Audit Operations"],
+        "summary": "List all available audit rules",
+        "description": "Returns the complete catalogue of audit rules defined in the registry.\n\nDoes not depend on the DB or per-cluster configuration — it is the static\ncatalogue of rules implemented in code. Used by the frontend to build\nthe configuration UI.\n\nResponse\n--------\nList of objects with: id, name, description, severity, needs.",
+        "operationId": "list_all_rules_api_v1_admin_audit_rules_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/audit/rules/{cluster_id}": {
+      "get": {
+        "tags": ["Audit Operations"],
+        "summary": "Audit rules configuration for a cluster",
+        "description": "Returns the configuration of all rules for the specified cluster.\n\nFor each rule includes:\n- `enabled`: True if the rule is active (default) or has been explicitly\n  enabled; False if it has been disabled by the admin.\n- `note`: optional reason for the disablement.\n\nRules without explicit configuration in the DB appear with\n`enabled=True` (default-on logic).\n\nParameters\n----------\ncluster_id : str\n    Cluster ID (e.g. \"K3S\", \"DIPI-1\"). Case-insensitive.",
+        "operationId": "get_cluster_rule_config_api_v1_admin_audit_rules__cluster_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit/rules/{cluster_id}/{rule_id}": {
+      "patch": {
+        "tags": ["Audit Operations"],
+        "summary": "Enable or disable a rule for a cluster",
+        "description": "Enables or disables a single audit rule for a cluster (upsert).\n\nIf no record exists for (cluster_id, rule_id) it is created.\nIf one already exists it is updated. The `note` field is optional — if None\nthe previous value is preserved only when the record already existed;\nfor a new record it is set to None.\n\nParameters\n----------\ncluster_id : str\n    Target cluster ID.\nrule_id : str\n    ID of the rule to configure. Must exist in the registry.\nenabled : bool\n    Desired state of the rule.\nnote : str | None\n    Optional reason for the configuration.\n\nRaises\n------\nHTTPException 404\n    If `rule_id` does not exist in the registry.",
+        "operationId": "update_rule_config_api_v1_admin_audit_rules__cluster_id___rule_id__patch",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          },
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_update_rule_config_api_v1_admin_audit_rules__cluster_id___rule_id__patch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit/rules/{cluster_id}/reset": {
+      "post": {
+        "tags": ["Audit Operations"],
+        "summary": "Reset the default configuration for a cluster",
+        "description": "Removes all explicit rule configuration for the cluster,\nresetting every rule to its default state (enabled=True).\n\nThis does not delete the cluster or its profiles — it only removes\nthe records in the `audit_rule_configs` table for this cluster.\n\nUseful when:\n- A cluster is reconfigured and you want to start from scratch.\n- The configuration has become inconsistent and needs to be restored.\n\nParameters\n----------\ncluster_id : str\n    ID of the cluster to reset.",
+        "operationId": "reset_cluster_rule_config_api_v1_admin_audit_rules__cluster_id__reset_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit/results": {
+      "get": {
+        "tags": ["Audit Operations"],
+        "summary": "Run audit on all fleet clusters",
+        "description": "Runs the audit rules on all registered clusters using the\nFleetManager cache data.\n\nIf the cache is empty (first start, container just restarted) it forces\na synchronous fleet scan before proceeding with the audit.\nIn this case the response may take a few seconds.\n\nDisabled rules for a cluster are not executed (respects the\nconfiguration in `audit_rule_configs`).\n\nOffline clusters receive only the `cluster-reachable` rule,\navoiding false negatives from unavailable data.\n\nResponse\n--------\nList of per-cluster results with: cluster_id, cluster_name, status,\nscore (passed rules), total (evaluated rules), score_pct, findings.",
+        "operationId": "get_audit_results_api_v1_admin_audit_results_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/audit/results/{cluster_id}": {
+      "get": {
+        "tags": ["Audit Operations"],
+        "summary": "Run audit on a single cluster",
+        "description": "Runs the audit rules on a single cluster.\n\nFilters the cache data for the specified cluster.\nIf the cluster is not found in the cache, forces a full scan.\n\nParameters\n----------\ncluster_id : str\n    Cluster ID (e.g. \"DIPI-1\").\n\nRaises\n------\nHTTPException 404\n    If the cluster is not found in the DB or in the cache.",
+        "operationId": "get_cluster_audit_result_api_v1_admin_audit_results__cluster_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit/results/refresh": {
+      "post": {
+        "tags": ["Audit Operations"],
+        "summary": "Force a fleet scan and return fresh audit results",
+        "description": "Forces a complete fleet scan, updates the FleetManager cache\nand returns audit results based on fresh data.\n\nUnlike GET /results (which uses the cache), this route\nalways performs real calls to the K8s clusters. It may take\nseveral seconds depending on the number of clusters and network latency.\n\nSide effect: updates the global FleetManager cache, also affecting\nsubsequent calls to GET /fleet/status and GET /results.",
+        "operationId": "refresh_and_audit_api_v1_admin_audit_results_refresh_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_add_cluster_api_v1_admin_clusters_post": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "ca_file": {
+            "type": "string",
+            "format": "binary",
+            "title": "Ca File"
+          }
+        },
+        "type": "object",
+        "required": ["id", "name", "host"],
+        "title": "Body_add_cluster_api_v1_admin_clusters_post"
+      },
+      "Body_apply_resource_api_v1_apply_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": ["file"],
+        "title": "Body_apply_resource_api_v1_apply_post"
+      },
+      "Body_install_from_zip_api_v1_helm_namespaces__namespace__releases__release_name__from_zip_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File",
+            "description": "ZIP archive containing the Helm chart (must contain Chart.yaml)"
+          }
+        },
+        "type": "object",
+        "required": ["file"],
+        "title": "Body_install_from_zip_api_v1_helm_namespaces__namespace__releases__release_name__from_zip_post"
+      },
+      "Body_lint_chart_from_zip_api_v1_helm_charts_lint_zip_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File",
+            "description": "ZIP archive containing the Helm chart"
+          }
+        },
+        "type": "object",
+        "required": ["file"],
+        "title": "Body_lint_chart_from_zip_api_v1_helm_charts_lint_zip_post"
+      },
+      "Body_login_api_v1_auth_login_post": {
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "title": "Cluster Id"
+          },
+          "profile": {
+            "type": "string",
+            "title": "Profile"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": ["cluster_id", "profile", "password"],
+        "title": "Body_login_api_v1_auth_login_post"
+      },
+      "Body_update_cluster_api_v1_admin_clusters__cluster_id__patch": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
+          },
+          "ca_file": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "binary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ca File"
+          }
+        },
+        "type": "object",
+        "title": "Body_update_cluster_api_v1_admin_clusters__cluster_id__patch"
+      },
+      "Body_update_profile_api_v1_admin_profiles__profile_id__patch": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "cluster_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cluster Id"
+          },
+          "gateway_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gateway Password"
+          },
+          "k8s_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "K8S Token"
+          }
+        },
+        "type": "object",
+        "title": "Body_update_profile_api_v1_admin_profiles__profile_id__patch"
+      },
+      "Body_update_rule_config_api_v1_admin_audit_rules__cluster_id___rule_id__patch": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "True to enable, False to disable"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Optional reason (e.g. 'development cluster — privileged pods accepted')"
+          }
+        },
+        "type": "object",
+        "required": ["enabled"],
+        "title": "Body_update_rule_config_api_v1_admin_audit_rules__cluster_id___rule_id__patch"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ProfileCreate": {
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "title": "Cluster Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "gateway_password": {
+            "type": "string",
+            "title": "Gateway Password"
+          },
+          "k8s_token": {
+            "type": "string",
+            "title": "K8S Token"
+          }
+        },
+        "type": "object",
+        "required": ["cluster_id", "name", "gateway_password", "k8s_token"],
+        "title": "ProfileCreate"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": ["loc", "msg", "type"],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Admin-Key"
+      }
+    }
+  }
+}
