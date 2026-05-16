@@ -432,6 +432,12 @@ def _eval_namespace_quota_presence(cluster: dict) -> AuditFinding:
     if not ns_data.get("can_list", True):
         return AuditFinding(
             passed=True,
+def _eval_namespace_quota_presence(cluster: dict) -> AuditFinding:
+    """Verifica se i namespace utente sono protetti da ResourceQuotas."""
+    ns_data = cluster.get("namespaces", {})
+    if not ns_data.get("can_list", True):
+        return AuditFinding(
+            passed=True,
             detail="Permessi insufficienti per verificare ResourceQuota — regola saltata.",
             evidence={"skipped": True, "reason": "namespaces list not allowed"},
         )
