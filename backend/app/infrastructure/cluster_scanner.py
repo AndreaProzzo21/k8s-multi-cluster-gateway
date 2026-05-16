@@ -145,8 +145,10 @@ pod_pending = sum(1 for p in pods if p.get("status") == "Pending")
         # Calcolo CPU totale
         total_cpu = 0
         for n in nodes:
-            try: total_cpu += int(n.get("cpu", 0))
-            except: pass
+            try:
+                total_cpu += int(n.get("cpu", 0))
+            except (ValueError, TypeError):
+                pass
 
         return {
             **base,
