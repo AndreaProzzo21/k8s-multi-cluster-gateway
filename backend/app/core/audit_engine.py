@@ -429,6 +429,12 @@ def _eval_node_cpu_pressure(cluster: dict) -> AuditFinding:
 def _eval_namespace_quota_presence(cluster: dict) -> AuditFinding:
     """Verifica se i namespace utente sono protetti da ResourceQuotas."""
     ns_data = cluster.get("namespaces", {})
+    if not ns_data.get("can_list", True):
+        return AuditFinding(
+            passed=True,
+            detail="Permessi insufficienti per verificare ResourceQuota — regola saltata.",
+            evidence={"skipped": True, "reason": "namespaces list not allowed"},
+        )
     items = ns_data.get("items", [])
     user_ns = [ns["name"] for ns in items if ns["name"] not in _SYSTEM_NAMESPACES]
     # Nota: assume che lo scanner popoli 'has_quota' (puoi aggiungerlo allo scanner k8s)
