@@ -3,6 +3,7 @@ from app.infrastructure.database import SessionLocal, ClusterModel, ProfileModel
 from app.api.schemas.cluster_schema import ProfileCreate
 from app.api.dependencies.get_admin_key import require_admin_key
 from app.core.fleet_manager import FleetManager
+from app.infrastructure.cluster_scanner import scan_all_clusters
 from typing import Optional
 import os
 
