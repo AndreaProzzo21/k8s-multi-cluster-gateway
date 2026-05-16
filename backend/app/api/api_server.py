@@ -88,7 +88,7 @@ def create_app() -> FastAPI:
     # --- REGISTRAZIONE ROTTE ---
     
     # Rotte Pubbliche
-    app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+    app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
     
     # Rotte Protette
     app.include_router(k8s_router, prefix="/api/v1", tags=["Kubernetes Operations"])
