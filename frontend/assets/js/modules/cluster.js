@@ -273,7 +273,7 @@ async function loadNodes() {
         resArea.innerHTML = html;
 
     } catch (err) {
-        showError("Errore critico durante il caricamento dei nodi: " + err.message);
+        showError("Failed to load nodes: " + err.message);
     }
 }
 
