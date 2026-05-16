@@ -410,6 +410,67 @@ def _eval_os_homogeneity(cluster: dict) -> AuditFinding:
         evidence={"os_distribution": node_os_map},
     )
 
+def _eval_node_cpu_pressure(cluster: dict) -> AuditFinding:
+    """Monitora la saturazione della CPU sui nodi."""
+    nodes = cluster.get("nodes") or []
+    stressed = []
+    for n in nodes:
+        try:
+            total = int(n.get("cpu", "0"))
+            alloc = int(n.get("cpu_allocatable", "0"))
+            if total > 0:
+                usage = ((total - alloc) / total) * 100
+                if usage > 85: stressed.append(f"{n['name']} ({usage:.0f}%)")
+        except: continue
+    return AuditFinding(passed=len(stressed)==0, 
+                        detail="CPU disponibile su tutti i nodi." if not stressed else f"Nodi sotto sforzo CPU (>85%): {', '.join(stressed)}",
+                        evidence={"stressed_nodes": stressed})
+
+def _eval_namespace_quota_presence(cluster: dict) -> AuditFinding:
+    """Verifica se i namespace utente sono protetti da ResourceQuotas."""
+    ns_data = cluster.get("namespaces", {})
+    items = ns_data.get("items", [])
+    user_ns = [ns["name"] for ns in items if ns["name"] not in _SYSTEM_NAMESPACES]
+    # Nota: assume che lo scanner popoli 'has_quota' (puoi aggiungerlo allo scanner k8s)
+    missing = [ns for ns in user_ns if not any(n["name"] == ns and n.get("has_quota") for n in items)]
+    return AuditFinding(passed=len(missing)==0,
+                        detail="Tutti i namespace hanno quote di risorse." if not missing else f"Namespace senza limiti (rischioso): {', '.join(missing)}",
+                        evidence={"missing_quotas": missing})
+
+def _eval_loadbalancer_usage(cluster: dict) -> AuditFinding:
+    """Controlla l'uso di Service LoadBalancer (spesso costosi o limitati)."""
+    stats = cluster.get("stats", {})
+    lb_count = stats.get("services_lb", 0)
+    limit = 10 
+    return AuditFinding(passed=lb_count <= limit,
+                        detail=f"Uso LoadBalancer sotto controllo ({lb_count})." if lb_count <= limit else f"Eccessivo uso di LoadBalancer ({lb_count}) — rischio costi/IP esauriti.",
+                        evidence={"lb_count": lb_count, "limit": limit})
+
+def _eval_pending_pods_check(cluster: dict) -> AuditFinding:
+    """Rileva pod in stato Pending (spesso indice di risorse insufficienti)."""
+    stats = cluster.get("stats", {})
+    pending = stats.get("pods_pending", 0)
+    return AuditFinding(passed=pending == 0,
+                        detail="Nessun pod in attesa di scheduling." if pending == 0 else f"Rilevati {pending} pod in stato Pending. Possibile mancanza di risorse o errori di affinità.",
+                        evidence={"pods_pending": pending})
+
+def _eval_single_replica_deployments(cluster: dict) -> AuditFinding:
+    """Verifica la presenza di workload critici senza alta affidabilità (HA)."""
+    # Nota: richiede che lo scanner conti i deployment con replicas=1
+    single_replicas = cluster.get("stats", {}).get("deployments_single_replica", 0)
+    return AuditFinding(passed=single_replicas == 0,
+                        detail="Tutti i workload hanno repliche multiple (HA)." if single_replicas == 0 else f"Rilevati {single_replicas} deployment con singola replica. Rischio downtime durante update.",
+                        evidence={"single_replica_count": single_replicas})
+
+def _eval_deprecated_api_usage(cluster: dict) -> AuditFinding:
+    """Controlla se ci sono API deprecate rispetto alla versione del server."""
+    # Semplificato: se la versione è >= 1.29 e ci sono vecchi oggetti
+    ver = cluster.get("server_version", "0.0")
+    has_old = cluster.get("stats", {}).get("deprecated_apis", False)
+    passed = not (float(ver) >= 1.29 and has_old)
+    return AuditFinding(passed=passed,
+                        detail="Nessuna API deprecata rilevata." if passed else "Rilevato uso di API deprecate (es. Beta Ingress/Autoscaling) incompatibili con K8s 1.29+.")
+
 
 # ---------------------------------------------------------------------------
 # Registry delle regole
@@ -555,6 +616,62 @@ RULE_REGISTRY: dict[str, AuditRule] = {r.id: r for r in [
         severity="info",
         needs={"namespaces"},
         evaluate=_eval_namespace_count_reasonable,
+    ),
+
+    # ── Nuove Regole Observer (Monitoring & Cost) ────────────────────────
+
+    AuditRule(
+        id="node-cpu-pressure",
+        name="Node CPU Pressure < 85%",
+        description="Monitora se i nodi stanno saturando la capacità di calcolo.",
+        severity="warning",
+        needs={"nodes"},
+        evaluate=_eval_node_cpu_pressure,
+    ),
+
+    AuditRule(
+        id="pending-pods-check",
+        name="No Pending Pods",
+        description="Rileva pod che non riescono a essere schedulati sui nodi.",
+        severity="critical",
+        needs={"stats"},
+        evaluate=_eval_pending_pods_check,
+    ),
+
+    AuditRule(
+        id="namespace-quota-presence",
+        name="Namespace Resource Quotas",
+        description="Assicura che ogni namespace utente abbia limiti di risorse per evitare 'Noisy Neighbor'.",
+        severity="warning",
+        needs={"namespaces"},
+        evaluate=_eval_namespace_quota_presence,
+    ),
+
+    AuditRule(
+        id="loadbalancer-limit",
+        name="LoadBalancer Usage Control",
+        description="Monitora il numero di servizi di tipo LoadBalancer per controllo costi e risorse cloud.",
+        severity="info",
+        needs={"stats"},
+        evaluate=_eval_loadbalancer_usage,
+    ),
+
+    AuditRule(
+        id="ha-workload-policy",
+        name="High Availability Deployment",
+        description="Verifica che i deployment abbiano più di una replica per garantire la continuità del servizio.",
+        severity="info",
+        needs={"stats"},
+        evaluate=_eval_single_replica_deployments,
+    ),
+
+    AuditRule(
+        id="deprecated-api-check",
+        name="Modern API Compliance",
+        description="Rileva l'uso di API Kubernetes deprecate o rimosse nelle versioni recenti.",
+        severity="warning",
+        needs={"server_version", "stats"},
+        evaluate=_eval_deprecated_api_usage,
     ),
 
 ]}
