@@ -426,12 +426,7 @@ def _eval_node_cpu_pressure(cluster: dict) -> AuditFinding:
                         detail="CPU disponibile su tutti i nodi." if not stressed else f"Nodi sotto sforzo CPU (>85%): {', '.join(stressed)}",
                         evidence={"stressed_nodes": stressed})
 
-def _eval_namespace_quota_presence(cluster: dict) -> AuditFinding:
-    """Verifica se i namespace utente sono protetti da ResourceQuotas."""
-    ns_data = cluster.get("namespaces", {})
-    if not ns_data.get("can_list", True):
-        return AuditFinding(
-            passed=True,
+
 def _eval_namespace_quota_presence(cluster: dict) -> AuditFinding:
     """Verifica se i namespace utente sono protetti da ResourceQuotas."""
     ns_data = cluster.get("namespaces", {})
