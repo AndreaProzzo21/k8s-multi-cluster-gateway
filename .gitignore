@@ -2,6 +2,7 @@ backend/data/
 .env
 frontend/favicon.ico
 frontend/logo_dashboard.jfif
+frontend/nginx.conf
 backend/debug_factory.py
 backend/tests
 backend/pytest.ini
