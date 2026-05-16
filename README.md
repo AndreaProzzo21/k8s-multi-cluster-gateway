@@ -393,9 +393,15 @@ volumes:
 
 ---
 
-## Interactive API Documentation
+### API Documentation
 
-Available at [`http://localhost:8000/docs`](http://localhost:8000/docs) when the gateway is running. All endpoints are documented with request/response schemas and can be tested directly from the browser.
+The framework provides two ways to explore and test the available endpoints:
+
+* **Official Developer Portal (Static)**:
+For a deep dive into the architecture, governance principles, and detailed API schemas, visit our **[Online Documentation](https://andreaprozzo21.github.io/k8s-cloud-gateway/)**. This version is always available and powered by Redoc.
+* **Interactive Swagger UI (Live)**:
+When the gateway is running locally, you can access the interactive documentation at:
+[`http://localhost:8000/docs`](https://www.google.com/search?q=http://localhost:8000/docs)
 
 ---
 
