@@ -351,6 +351,83 @@ class CoreManager:
         except Exception as e:
             self._handle_exception(e, f"Dettaglio Service '{name}'")
 
+    # --- RESOURCE QUOTA OPERATIONS ---
+
+    def list_resource_quotas(self, namespace: str = None, **kwargs):
+        """
+        Elenca le ResourceQuotas. Se namespace è None, le elenca per tutto il cluster.
+        Necessario per l'audit engine (regola namespace-quota-presence).
+        """
+        try:
+            if namespace:
+                quotas = self.core_v1.list_namespaced_resource_quota(namespace=namespace, **kwargs)
+            else:
+                quotas = self.core_v1.list_resource_quota_for_all_namespaces(**kwargs)
+            
+            return [
+                {
+                    "name": q.metadata.name,
+                    "namespace": q.metadata.namespace,
+                    "spec": q.spec.hard,
+                    "status": q.status.used
+                } for q in quotas.items
+            ]
+        except Exception as e:
+            context = f"List Quotas in '{namespace or 'All Namespaces'}'"
+            self._handle_exception(e, context)
+
+    # --- AGGIORNAMENTO SERVICE OPERATIONS (Cluster-wide) ---
+
+    def list_services(self, namespace: str = None, **kwargs):
+        """
+        Elenca i servizi. Se namespace è None, opera Cluster-wide.
+        Necessario per l'audit engine (regola loadbalancer-limit).
+        """
+        try:
+            if namespace:
+                svcs = self.core_v1.list_namespaced_service(namespace=namespace, **kwargs)
+            else:
+                svcs = self.core_v1.list_service_for_all_namespaces(**kwargs)
+            
+            return [
+                {
+                    "name": s.metadata.name,
+                    "namespace": s.metadata.namespace,
+                    "type": s.spec.type,
+                    "cluster_ip": s.spec.cluster_ip,
+                    "external_ip": s.status.load_balancer.ingress[0].ip if s.status.load_balancer.ingress else None
+                } for s in svcs.items
+            ]
+        except Exception as e:
+            context = f"List Services in '{namespace or 'All Namespaces'}'"
+            self._handle_exception(e, context)
+
+    # --- AGGIORNAMENTO DEPLOYMENT OPERATIONS (Cluster-wide) ---
+
+    def list_deployments_fleet(self, namespace: str = None, **kwargs):
+        """
+        Versione estesa di list_deployments che supporta la scansione cluster-wide.
+        Necessario per l'audit engine (regola ha-workload-policy).
+        """
+        try:
+            if namespace:
+                deps = self.apps_v1.list_namespaced_deployment(namespace=namespace, **kwargs)
+            else:
+                deps = self.apps_v1.list_deployment_for_all_namespaces(**kwargs)
+            
+            return [
+                {
+                    "name": d.metadata.name,
+                    "namespace": d.metadata.namespace,
+                    "replicas": d.spec.replicas,
+                    "ready_replicas": d.status.ready_replicas or 0,
+                    "labels": d.metadata.labels
+                } for d in deps.items
+            ]
+        except Exception as e:
+            context = f"List Deployments in '{namespace or 'All Namespaces'}'"
+            self._handle_exception(e, context)
+
     # --- UNIVERSAL APPLY ---
 
     def apply_universal_yaml(self, yaml_content):
