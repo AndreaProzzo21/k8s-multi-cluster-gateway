@@ -263,8 +263,6 @@
             font-family: 'JetBrains Mono', monospace;
         }
         .badge-count { background: var(--accent-soft); color: var(--accent); }
-        .badge-new { background: #dcfce7; color: #166534; }
-        .badge-soon { background: #fef3c7; color: #92400e; }
 
         /* ══════════════════════════════════════
            CONTENT
@@ -482,6 +480,104 @@
         .toast.t-success i { color: var(--success); }
         .toast.t-error { border-color: #fecaca; }
         .toast.t-error i { color: var(--danger); }
+        /* Container dettagli espansi */
+.audit-detail-container {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: white;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.audit-detail-header {
+    background: #f8fafc;
+    padding: 12px 18px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-main);
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Griglia dei segnali */
+.findings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 15px;
+    padding: 18px;
+}
+
+.finding-row {
+    border: 1px solid #edf2f7;
+    border-radius: 8px;
+    padding: 15px;
+    transition: all 0.2s;
+    background: #fff;
+}
+
+.finding-row.f-pass { border-left: 4px solid var(--success); }
+.finding-row.f-fail-critical { border-left: 4px solid var(--danger); background: #fffafb; }
+.finding-row.f-fail-warning { border-left: 4px solid var(--warning); background: #fffdf9; }
+
+.f-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.f-info { display: flex; flex-direction: column; gap: 2px; }
+.f-pass .fa-check-circle { color: var(--success); }
+.f-fail-critical .fa-exclamation-circle { color: var(--danger); }
+.f-fail-warning .fa-exclamation-circle { color: var(--warning); }
+
+.f-name { font-weight: 700; font-size: 0.85rem; color: var(--text-main); }
+.f-id { font-family: 'Monaco', monospace; font-size: 0.65rem; color: var(--text-dim); }
+.badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px; /* Rende il badge pill-shaped */
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+    /* Un leggero bordo scuro per far risaltare il colore sullo sfondo bianco */
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+}
+
+.f-detail { font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; }
+
+/* Toggle Evidenza JSON */
+.f-evidence-toggle {
+    margin-top: 10px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--accent);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.f-evidence-content {
+    display: none;
+    margin-top: 8px;
+}
+
+.f-evidence-content.open { display: block; }
+
+.f-evidence-content pre {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    max-height: 150px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
     </style>
 </head>
 <body>
@@ -1083,7 +1179,7 @@
         const summaryArea = document.getElementById('auditSummary');
         const s = data.summary;
 
-        // 1. Summary Cards (Sempre pulite e informative)
+        // 1. Summary Cards
         summaryArea.innerHTML = `
             <div class="summary-row">
                 <div class="summary-card">
@@ -1109,7 +1205,7 @@
             return;
         }
 
-        // 2. Tabella Fleet Compliance
+        // 2. Tabella Fleet Compliance con Drawer Espandibile
         mainArea.innerHTML = `
             <div class="card">
                 <table class="data-table">
@@ -1137,8 +1233,8 @@
                                         <span class="badge-id" style="background:${isPerfect ? 'var(--success-bg)' : 'var(--danger-bg)'}; color:${isPerfect ? 'var(--success)' : 'var(--danger)'}; border:none;">
                                             ${r.score}/${r.total}
                                         </span>
-                                        <div style="width:60px; height:6px; background:#edf1fb; border-radius:10px; overflow:hidden;">
-                                            <div style="width:${(r.score/r.total)*100}%; height:100%; background:${isPerfect ? 'var(--success)' : 'var(--danger)'};"></div>
+                                        <div class="progress-mini">
+                                            <div class="progress-bar" style="width:${(r.score/r.total)*100}%; background:${isPerfect ? 'var(--success)' : 'var(--danger)'};"></div>
                                         </div>
                                     </div>
                                 </td>
@@ -1153,27 +1249,28 @@
                                             <i class="fas fa-sliders-h"></i> Rules
                                         </button>
                                         <button class="btn-small" onclick="runSingleAudit('${r.cluster_id}')" title="Analyze Now">
-                                            <i class="fas fa-microscope"></i>
+                                            <i class="fas fa-sync"></i>
                                         </button>
-                                        <button class="btn-small" onclick="toggleFindingsDetail('${r.cluster_id}')" title="View Issues">
+                                        <button class="btn-small" onclick="toggleFindingsDetail('${r.cluster_id}')" id="btn-toggle-${r.cluster_id}">
                                             <i class="fas fa-chevron-down"></i>
                                         </button>
                                     </div>
                                 </td>
                             </tr>
-                            <tr id="details-${r.cluster_id}" style="display:none; background:#fafbfe;">
-                                <td colspan="4" style="padding: 0 20px 20px 20px;">
-                                    <div style="border: 1px solid var(--border); border-radius: 8px; background: white; margin-top: 10px; overflow: hidden;">
+                            <tr id="details-${r.cluster_id}" style="display:none; background:#fcfdfe;">
+                                <td colspan="4" style="padding: 10px 25px 25px 25px;">
+                                    <div class="audit-detail-container">
+                                        <div class="audit-detail-header">
+                                            <i class="fas fa-microscope"></i> Detailed Observation Findings for ${r.cluster_id}
+                                        </div>
                                         ${renderFindingsTable(r.findings)}
                                     </div>
                                 </td>
-                            </tr>
-                            `;
+                            </tr>`;
                         }).join('')}
                     </tbody>
                 </table>
-            </div>
-        `;
+            </div>`;
     }
 
     // Genera i pallini colorati per un colpo d'occhio rapido
@@ -1186,27 +1283,39 @@
         `).join('');
     }
 
-    // Tabella dettagliata dei problemi (nascosta di default)
     function renderFindingsTable(findings) {
+        if (!findings || findings.length === 0) return '<div class="empty-state-sm">No rules executed.</div>';
+
         return `
-            <table class="data-table" style="box-shadow:none; border:none; width:100%;">
-                <thead style="background:#f4f7fd;">
-                    <tr>
-                        <th style="font-size:0.55rem; padding:8px 15px;">Rule ID</th>
-                        <th style="font-size:0.55rem; padding:8px 15px;">Severity</th>
-                        <th style="font-size:0.55rem; padding:8px 15px;">Message</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${findings.filter(f => !f.passed).map(f => `
-                        <tr>
-                            <td style="font-size:0.75rem; font-weight:600; color:var(--danger);">${esc(f.rule_id)}</td>
-                            <td><span class="badge" style="font-size:0.6rem; background:${getSeverityColor(f.severity)}">${f.severity}</span></td>
-                            <td style="font-size:0.75rem; color:var(--text-muted);">${esc(f.message)}</td>
-                        </tr>
-                    `).join('') || '<tr><td colspan="3" style="text-align:center; padding:15px; color:var(--success); font-weight:600; font-size:0.8rem;"><i class="fas fa-check-circle"></i> No issues found for this cluster</td></tr>'}
-                </tbody>
-            </table>
+            <div class="findings-grid">
+                ${findings.map(f => {
+                    const statusClass = f.passed ? 'f-pass' : `f-fail-${f.severity}`;
+                    const hasEvidence = f.evidence && Object.keys(f.evidence).length > 0;
+                    
+                    return `
+                    <div class="finding-row ${statusClass}">
+                        <div class="f-header">
+                            <div class="f-info">
+                                <i class="fas ${f.passed ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+                                <span class="f-name">${esc(f.rule_name)}</span>
+                                <span class="f-id">${esc(f.rule_id)}</span>
+                            </div>
+                            ${!f.passed ? `<span class="f-sev-badge ${f.severity}">${f.severity}</span>` : ''}
+                        </div>
+                        <div class="f-detail">${esc(f.detail)}</div>
+                        
+                        ${hasEvidence ? `
+                            <div class="f-evidence-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+                                <i class="fas fa-database"></i> View Evidence Data
+                            </div>
+                            <div class="f-evidence-content">
+                                <pre>${esc(JSON.stringify(f.evidence, null, 2))}</pre>
+                            </div>
+                        ` : ''}
+                    </div>
+                    `;
+                }).join('')}
+            </div>
         `;
     }
 
@@ -1326,9 +1435,8 @@
     function getSeverityColor(sev) {
         const colors = {
             critical: '#fee2e2', // Red 100
-            high:     '#ffedd5', // Orange 100
-            medium:   '#fef9c3', // Yellow 100
-            low:      '#f0fdf4'  // Green 100
+            warning:     '#ffedd5', // Orange 100
+            info:   '#e0f2fe', // Blu 100
         };
         return colors[sev] || '#f4f7fd';
     }
