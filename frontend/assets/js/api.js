@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000/api/v1";
+const API_BASE = "/api/v1";
 window.apiAbortController = new AbortController();
 
 // Flag: true durante l'health check iniziale, false dopo che la dashboard è caricata.
