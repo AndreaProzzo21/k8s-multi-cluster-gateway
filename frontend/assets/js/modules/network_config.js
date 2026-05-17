@@ -1,88 +1,49 @@
-async function loadServices() {
-    currentView = 'services';
-    renderLabelFilter(false); // <--- MOSTRA IL FILTRO
+async function loadConfigMaps() {
+    currentView = 'configmaps';
+    renderLabelFilter(true);
     
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     
-    // Spinner di caricamento iniziale
+    const labelSelector = document.getElementById('labelFilter')?.value || '';
+    let url = `/namespaces/${ns}/configmaps`;
+    if (labelSelector) url += `?label_selector=${encodeURIComponent(labelSelector)}`;
+
     resArea.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
-    
+
     try {
-        const data = await apiCall(`/namespaces/${ns}/services`);
-        
+        const data = await apiCall(url);
         let html = `
-            <h2>Services [${ns}]</h2>
+            <h2>ConfigMaps [${ns}]</h2>
             <table class="data-table">
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th>Type</th>
-                        <th>Cluster IP</th>
+                        <th>Labels</th>
+                        <th>Data Keys</th>
                         <th style="text-align:right">Actions</th>
                     </tr>
                 </thead>
                 <tbody>`;
         
-        data.forEach(s => {
+        data.forEach(cm => {
+            const keysHtml = cm.keys.length > 0 
+                ? cm.keys.map(k => `<code class="key-badge">${k}</code>`).join('')
+                : '<span class="none-text">No data</span>';
+
             html += `
                 <tr>
-                    <td><b>${s.name}</b></td>
-                    <td><span class="badge" style="background:#f1f5f9; color:#475569;">${s.type}</span></td>
-                    <td><code style="font-size:0.75rem">${s.cluster_ip || 'None'}</code></td>
+                    <td><b>${cm.name}</b></td>
+                    <td>${renderLabels(cm.labels)}</td>
+                    <td>${keysHtml}</td>
                     <td style="text-align:right">
-                        <button onclick="deleteResource('services', '${s.name}')" class="btn-small delete-btn">
+                        <button onclick="deleteResource('configmaps', '${cm.name}')" class="btn-small delete-btn" title="Delete">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
                 </tr>`;
         });
 
-        // Controllo lunghezza dati per mostrare tabella o messaggio
-        resArea.innerHTML = data.length > 0 
-            ? html + '</tbody></table>' 
-            : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Service found in namespace ${ns}.</p>`;
-            
-    } catch (err) { 
-        if (err.message === "RESTRICTED") {
-            renderRestrictedAccess(); 
-        } else {
-            showError(err.message);
-        }
-    }
-}
-
-async function loadConfigMaps() {
-    currentView = 'configmaps';
-    renderLabelFilter(false);
-    const ns = window.currentNamespace;
-    const resArea = document.getElementById('resultArea');
-    resArea.innerHTML = '<div style="text-align:center"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
-    try {
-        const data = await apiCall(`/namespaces/${ns}/configmaps`);
-        let html = `<h2>ConfigMaps [${ns}]</h2>
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Data Keys</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
-        
-        data.forEach(cm => {
-            // Creiamo dei piccoli badge grigi per ogni chiave trovata
-            const keysHtml = cm.keys.length > 0 
-                ? cm.keys.map(k => `<code style="background:#f1f5f9; padding:2px 6px; border-radius:4px; margin-right:4px; font-size:0.75rem;">${k}</code>`).join('')
-                : '<span style="color:var(--text-muted); font-size:0.8rem;">No data</span>';
-
-            html += `<tr>
-                <td><b>${cm.name}</b></td>
-                <td>${keysHtml}</td>
-                <td><button onclick="deleteResource('configmaps', '${cm.name}')" class="btn-small delete-btn"><i class="fas fa-trash"></i></button></td>
-            </tr>`;
-        });
         resArea.innerHTML = data.length > 0 
             ? html + '</tbody></table>' 
             : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No ConfigMap found in namespace ${ns}.</p>`;
@@ -98,61 +59,141 @@ async function loadConfigMaps() {
 
 async function loadSecrets() {
     currentView = 'secrets';
-    renderLabelFilter(false);
+    renderLabelFilter(true);
+    
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
-    resArea.innerHTML = '<div style="text-align:center"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+    
+    const labelSelector = document.getElementById('labelFilter')?.value || '';
+    let url = `/namespaces/${ns}/secrets`;
+    if (labelSelector) url += `?label_selector=${encodeURIComponent(labelSelector)}`;
+
+    resArea.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
     try {
-        const data = await apiCall(`/namespaces/${ns}/secrets`);
-        let html = `<h2>Secrets [${ns}]</h2>
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Type</th>
-                                <th>Data Keys</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
+        const data = await apiCall(url);
+        let html = `
+            <h2>Secrets [${ns}]</h2>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Labels</th>
+                        <th>Type</th>
+                        <th>Data Keys</th>
+                        <th style="text-align:right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>`;
         
         data.forEach(s => {
-            // Per i Secret usiamo uno stile leggermente diverso per le chiavi (lucchetto)
             const keysHtml = s.keys.length > 0 
-                ? s.keys.map(k => `<span style="display:inline-block; border:1px solid #e2e8f0; padding:2px 6px; border-radius:4px; margin:2px; font-size:0.75rem;"><i class="fas fa-lock" style="font-size:0.6rem; margin-right:4px; color:#94a3b8;"></i>${k}</span>`).join('')
-                : '<span style="color:var(--text-muted); font-size:0.8rem;">Empty</span>';
+                ? s.keys.map(k => `<span class="key-badge-secret"><i class="fas fa-lock"></i>${k}</span>`).join('')
+                : '<span class="none-text">Empty</span>';
 
-            html += `<tr>
-                <td><b>${s.name}</b></td>
-                <td><small>${s.type}</small></td>
-                <td>${keysHtml}</td>
-                <td><button onclick="deleteResource('secrets', '${s.name}')" class="btn-small delete-btn"><i class="fas fa-trash"></i></button></td>
-            </tr>`;
+            html += `
+                <tr>
+                    <td><b>${s.name}</b></td>
+                    <td>${renderLabels(s.labels)}</td>
+                    <td><small class="type-tag">${s.type}</small></td>
+                    <td>${keysHtml}</td>
+                    <td style="text-align:right">
+                        <button onclick="deleteResource('secrets', '${s.name}')" class="btn-small delete-btn" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
         });
-        
+
         resArea.innerHTML = data.length > 0 
             ? html + '</tbody></table>' 
             : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Secret found in namespace ${ns}.</p>`;
 
-    } catch (err) {                 
+    } catch (err) {
         if (err.message === "RESTRICTED") {
             renderRestrictedAccess(); 
         } else {
             showError(err.message);
-        } 
+        }
     }
 }
 
-async function loadIngress() {
-    currentView = 'ingress';
-    renderLabelFilter(false);
+async function loadServices() {
+    currentView = 'services';
+    renderLabelFilter(true);
+    
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     
+    const labelSelector = document.getElementById('labelFilter')?.value || '';
+    let url = `/namespaces/${ns}/services`;
+    if (labelSelector) url += `?label_selector=${encodeURIComponent(labelSelector)}`;
+
     resArea.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
     try {
-        const data = await apiCall(`/namespaces/${ns}/ingress`);
+        const data = await apiCall(url);
+        let html = `
+            <h2>Services [${ns}]</h2>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Labels</th>
+                        <th>Type</th>
+                        <th>Cluster IP</th>
+                        <th style="text-align:right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+        
+        data.forEach(s => {
+            html += `
+                <tr onclick="inspectResource('services', '${s.name}')" class="clickable-row">
+                    <td><b class="resource-name">${s.name}</b></td>
+                    <td>${renderLabels(s.labels)}</td>
+                    <td><span class="badge" style="background:#f1f5f9; color:#475569; font-weight:500;">${s.type}</span></td>
+                    <td><code style="font-size:0.75rem">${s.cluster_ip || 'N/A'}</code></td>
+                    <td style="text-align:right" onclick="event.stopPropagation()">
+                        <button onclick="deleteResource('services', '${s.name}')" class="btn-small delete-btn" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
+        });
+
+        resArea.innerHTML = data.length > 0 
+            ? html + '</tbody></table>' 
+            : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Service found in namespace ${ns}.</p>`;
+            
+    } catch (err) { 
+        if (err.message === "RESTRICTED") {
+            renderRestrictedAccess(); 
+        } else {
+            showError(err.message);
+        }
+    }
+}
+
+
+async function loadIngress() {
+    window.currentView = 'ingress';
+    
+    // 1. Forza il rendering del filtro (Fix per il bug della sparizione)
+    renderLabelFilter(true);
+    
+    const ns = window.currentNamespace;
+    const resArea = document.getElementById('resultArea');
+    
+    // 2. Recupero il valore del filtro per la chiamata API
+    const labelSelector = document.getElementById('labelFilter')?.value || '';
+    let url = `/namespaces/${ns}/ingress`;
+    if (labelSelector) url += `?label_selector=${encodeURIComponent(labelSelector)}`;
+
+    resArea.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+    try {
+        const data = await apiCall(url);
         
         let html = `
             <h2>Ingress Resources [${ns}]</h2>
@@ -160,8 +201,9 @@ async function loadIngress() {
                 <thead>
                     <tr>
                         <th>Name</th>
+                        <th>Labels</th>
                         <th>Hosts</th>
-                        <th>Address (LoadBalancer)</th>
+                        <th>Address (LB)</th>
                         <th>Age</th>
                         <th style="text-align:right">Actions</th>
                     </tr>
@@ -169,19 +211,20 @@ async function loadIngress() {
                 <tbody>`;
 
         data.forEach(ing => {
-            // Renderizziamo gli host come piccoli codici blu
+            // Render Host con stile badge coerente
             const hostsHtml = ing.hosts.length > 0 
-                ? ing.hosts.map(h => `<code style="color:var(--accent); margin-right:5px;">${h}</code>`).join(' ')
-                : '<span style="color:var(--text-muted)">*</span>';
+                ? ing.hosts.map(h => `<code class="key-badge" style="color:var(--accent);">${h}</code>`).join(' ')
+                : '<span class="none-text">*</span>';
 
-            // Renderizziamo gli IP/Hostname esterni
+            // Render IP/Hostname esterni
             const addrHtml = ing.address.length > 0
-                ? ing.address.map(a => `<span style="font-size:0.75rem;">${a}</span>`).join(', ')
-                : '<span style="color:var(--text-muted)">-</span>';
+                ? ing.address.map(a => `<span class="type-tag" style="font-size:0.7rem;">${a}</span>`).join(', ')
+                : '<span class="none-text">-</span>';
 
             html += `
                 <tr>
-                    <td><b>${ing.name}</b></td>
+                    <td><b style="color:var(--accent)">${ing.name}</b></td>
+                    <td>${renderLabels(ing.labels)}</td>
                     <td>${hostsHtml}</td>
                     <td>${addrHtml}</td>
                     <td><small>${new Date(ing.creation_timestamp).toLocaleDateString()}</small></td>
@@ -205,7 +248,6 @@ async function loadIngress() {
         } 
     }
 }
-
 
 
 

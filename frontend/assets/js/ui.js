@@ -99,115 +99,102 @@ function handleLoadingError(errorMsg) {
     `;
 }
 
-/**
- * Sidebar Active State Manager
- */
+
+function renderRestrictedAccess() {
+    const resArea = document.getElementById('resultArea');
+    
+    resArea.innerHTML = `
+        <div style="
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100%; 
+            min-height: 450px;
+            padding: 20px;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        ">
+            <div style="
+                background: #ffffff; 
+                padding: 50px 40px; 
+                border-radius: 24px; 
+                border: 1px solid rgba(0,0,0,0.04);
+                box-shadow: 0 10px 30px rgba(0,0,0,0.02);
+                text-align: center;
+                max-width: 480px;
+                width: 100%;
+            ">
+                <div style="
+                    background: #fff5f5;
+                    width: 64px;
+                    height: 64px;
+                    border-radius: 20px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 24px;
+                ">
+                    <i class="fas fa-lock" style="font-size: 1.5rem; color: #ffa968;"></i>
+                </div>
+                
+                <h2 style="
+                    color: #1a202c; 
+                    font-size: 1.3rem; 
+                    font-weight: 600; 
+                    margin-bottom: 16px;
+                    letter-spacing: -0.02em;
+                ">
+                    Access Restricted
+                </h2>
+                
+                <p style="
+                    font-size: 0.95rem; 
+                    line-height: 1.7; 
+                    margin-bottom: 0;
+                    color: #4a5568;
+                    font-weight: 400;
+                ">
+                    Your current profile lacks the necessary <strong>RBAC permissions</strong> to interact with 
+                    <span style="
+                        color: #4a5568; 
+                        background: #edf2f7; 
+                        padding: 2px 8px; 
+                        border-radius: 6px; 
+                        font-weight: 600;
+                        font-size: 0.85rem;
+                    ">
+                        ${window.currentView.toUpperCase()}
+                    </span> 
+                    on this cluster.
+                </p>
+
+            </div>
+        </div>`;
+}
+
+
 function setActive(el) {
+    if (!el) return;
+    
+    // Check di sicurezza: se l'utente è restricted e prova ad accedere ai nodi
+    if (window.userProfile === 'restricted' && el.id === 'menu-nodes') {
+        renderRestrictedAccess();
+        return;
+    }
+
     document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
     el.classList.add('active');
 
     const controls = document.getElementById('controlsContainer');
-    controls.style.display = (el.id === 'menu-nodes') ? 'none' : 'flex';
+    // Nascondi controlli (namespace/refresh) se siamo sui nodi o se la risorsa è globale
+    controls.style.display = (el.id === 'menu-nodes' || el.id === 'menu-storage') ? 'none' : 'flex';
 
+    // Gestione filtri label
     const labelInput = document.getElementById('labelFilter');
     if (labelInput) {
-        if (el.id === 'menu-pods' || el.id === 'menu-deps') {
-            labelInput.style.display = 'block';
-        } else {
-            labelInput.style.display = 'none';
-            labelInput.value = '';
-        }
+        labelInput.style.display = (el.id === 'menu-pods' || el.id === 'menu-deps') ? 'block' : 'none';
+        if (labelInput.style.display === 'none') labelInput.value = '';
     }
-}
-
-/**
- * Namespace Manual Input (Restricted Access Mode)
- */
-function showManualInput() {
-    const container = document.getElementById('nsContextArea');
-    container.innerHTML = `
-        <div style="display:flex; align-items:center; gap:10px;">
-            <input type="text" id="manualNS" value="${window.currentNamespace}" 
-                placeholder="Enter namespace" 
-                style="width: 200px; padding: 8px; border-radius: 4px; border: 1px solid var(--border); outline: none;">
-            <button onclick="updateNamespaceContext(document.getElementById('manualNS').value)" 
-                    class="btn-action" style="padding: 8px 15px;">
-                CONFIRM
-            </button>
-            <small style="color:var(--text-muted); font-size:0.7rem; text-transform: uppercase;">Limited Access</small>
-        </div>
-    `;
-}
-
-/**
- * Global Namespace Context Switcher
- */
-function updateNamespaceContext(val) {
-    if (!val) return;
-    window.currentNamespace = val;
-    localStorage.setItem('last_ns', val);
-    refreshCurrentView();
-}
-
-/**
- * Renders 403 Forbidden / Restricted UI
- */
-function renderRestrictedAccess() {
-    const resArea = document.getElementById('resultArea');
-    resArea.innerHTML = `
-        <div style="text-align:center; padding:80px 20px; color:var(--text-muted);">
-            <h2 style="color:var(--text-muted); font-weight: 500; letter-spacing: 2px;">ACCESS RESTRICTED</h2>
-            <div style="width: 50px; height: 2px; background: var(--warning); margin: 20px auto;"></div>
-            <p style="max-width: 500px; margin: 0 auto; line-height: 1.6;">
-                Your current security profile does not have sufficient permissions to view this resource or perform this action.
-            </p>
-        </div>`;
-}
-
-/**
- * Global Error Handler
- */
-function showError(msg) {
-    if (msg === "RESTRICTED") {
-        renderRestrictedAccess();
-    } else {
-        console.error("System Error:", msg);
-        // Optional: replace alert with a cleaner toast notification
-        alert("SYSTEM ERROR\n" + msg);
-    }
-}
-
-/**
- * Compact Label Renderer
- */
-function renderLabels(labelsObj) {
-    const systemLabels = ['pod-template-hash', 'controller-revision-hash', 'statefulset.kubernetes.io/pod-name'];
-    if (!labelsObj || Object.keys(labelsObj).length === 0) return '<span style="color:var(--text-muted)">none</span>';
-
-    const labelsHtml = Object.entries(labelsObj)
-        .filter(([key]) => !systemLabels.includes(key))
-        .map(([k, v]) => `<span class="label-badge" title="${k}=${v}">${k}=${v}</span>`)
-        .join('');
-
-    return `<div class="labels-column">${labelsHtml || '<span style="color:var(--text-muted)">none</span>'}</div>`;
-}
-
-function setActive(el) {
-document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
-el.classList.add('active');
-
-const controls = document.getElementById('controlsContainer');
-controls.style.display = (el.id === 'menu-nodes') ? 'none' : 'flex';
-
-const labelInput = document.getElementById('labelFilter');
-if (labelInput) {
-    if (el.id === 'menu-pods' || el.id === 'menu-deps') {
-        labelInput.style.display = 'block';
-    } else {
-        labelInput.style.display = 'none';
-        labelInput.value = '';
-    }
-}
 }
 
 function showManualInput() {
@@ -232,15 +219,6 @@ function updateNamespaceContext(val) {
     refreshCurrentView();
 }
 
-function renderRestrictedAccess() {
-const resArea = document.getElementById('resultArea');
-resArea.innerHTML = `
-    <div style="text-align:center; padding:60px; color:var(--text-muted);">
-        <i class="fas fa-shield-alt fa-4x" style="margin-bottom:20px; color:var(--warning);"></i>
-        <h2 style="color:var(--text-muted);">Accesso Limitato</h2>
-        <p>Il tuo profilo non dispone dei permessi necessari per visualizzare questa risorsa o eseguire l'operazione.</p>
-    </div>`;
-}
 
 /**
  * Sostituisce il vecchio alert() con una notifica Toast non bloccante.
@@ -428,20 +406,22 @@ function showApplyForm() {
 
 function renderLabelFilter(visible = false) {
     const area = document.getElementById('dynamicControlsArea');
+    if (!area) return;
+
     if (!visible) {
         area.innerHTML = '';
         return;
     }
 
-    // Se è già presente, non lo sovrascrivere (per non perdere il focus mentre scrivi)
-    if (document.getElementById('labelFilter')) return;
+    // Rimuoviamo il controllo "if exists return" e forziamo la pulizia
+    // ma salviamo il valore se l'utente stava scrivendo
+    const existingInput = document.getElementById('labelFilter');
+    const savedValue = existingInput ? existingInput.value : '';
 
+    // Ricostruiamo sempre l'area per assicurarci che sia "fresca"
     area.innerHTML = `
         <div style="position: relative; display: flex; align-items: center; gap: 5px;">
-            <i class="fas fa-info-circle" 
-               style="color: var(--accent); cursor: help;" 
-               onclick="document.getElementById('filterHelp').classList.toggle('show')"></i>
-            
+            <i class="fas fa-info-circle" style="color: var(--accent); cursor: help;" onclick="document.getElementById('filterHelp').classList.toggle('show')"></i>
             <div id="filterHelp" class="info-tooltip">
                 <strong>K8s Label Selectors:</strong>
                 <ul>
@@ -450,10 +430,14 @@ function renderLabelFilter(visible = false) {
                     <li><code>app!=web</code> : Exclusion</li>
                 </ul>
             </div>
-            
             <input type="text" id="labelFilter" placeholder="Filter by label..." 
                 style="width: 180px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.8rem;"
                 onkeydown="if(event.key==='Enter') refreshCurrentView()">
         </div>
     `;
+
+    // Ripristiniamo il valore se c'era
+    if (savedValue) {
+        document.getElementById('labelFilter').value = savedValue;
+    }
 }

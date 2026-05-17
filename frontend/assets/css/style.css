@@ -371,19 +371,28 @@ body {
     font-weight: 800;
     font-size: 13.5px;
     text-transform: uppercase;
-    letter-spacing: 0.20em;
+    letter-spacing: 0.18em; /* Leggermente ridotto per leggibilità */
     display: flex;
     align-items: center;
-    gap: 10px;
-    color: #ffffff;
-    -webkit-text-fill-color: unset;
-    background: none;
-    -webkit-background-clip: unset;
-    background-clip: unset;
+    gap: 12px;
+    
+    /* Effetto Bi-Colore sul testo tramite Gradient */
+    background: linear-gradient(to right, #fffad1 115px, #ffffff 115px);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    
+    /* Smoothing per i font */
+    -webkit-font-smoothing: antialiased;
 }
 
 .nav-brand i {
-    color: #7eb3ff;
+    /* L'icona riprende il giallo tenue del brand per coerenza */
+    color: #fffad1;
+    font-size: 1.1rem;
+    /* Rimuove l'effetto trasparente del gradient dall'icona */
+    -webkit-text-fill-color: #fffad1;
+    filter: drop-shadow(0 0 8px rgba(255, 250, 209, 0.2));
 }
 
 .nav-right-container {
@@ -631,6 +640,48 @@ body {
     transform: translateY(0);
 }
 
+
+.refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #ffffff;
+    color: #475569; /* Un grigio ardesia molto elegante */
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Effetto Hover */
+.refresh-btn:hover {
+    background: #f8fafc;
+    color: var(--accent); /* Usa il tuo giallo/oro per il testo al passaggio */
+    border-color: #cbd5e0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transform: translateY(-1px);
+}
+
+/* Animazione dell'icona */
+.refresh-btn:hover i {
+    transform: rotate(180deg);
+}
+
+.refresh-btn i {
+    font-size: 0.9rem;
+    transition: transform 0.4s ease;
+    color: #94a3b8;
+}
+
+/* Feedback al click */
+.refresh-btn:active {
+    transform: translateY(0);
+    background: #f1f5f9;
+}
 .btn-logout {
     background: rgba(255,255,255,0.10);
     color: rgba(255,255,255,0.80);
@@ -651,87 +702,71 @@ body {
     border-color: rgba(229,53,53,0.35);
 }
 
-/* TABLE ACTION BUTTONS */
-button[onclick*="scaleDeploy"] {
-    background: #eff6ff;
-    color: #2563eb;
-    border: 1px solid #bfdbfe;
-    border-radius: var(--radius-sm);
-    padding: 5px 10px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
-    letter-spacing: 0.02em;
-}
-button[onclick*="scaleDeploy"]:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
-
-button[onclick*="restartDeploy"] {
-    background: #fff7ed;
-    color: #c2620a;
-    border: 1px solid #fed7aa;
-    border-radius: var(--radius-sm);
-    padding: 5px 10px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
-}
-button[onclick*="restartDeploy"]:hover { background: #ea7718; color: #fff; border-color: #ea7718; }
-
+/* 1. BASE COMUNE PER TUTTI I BOTTONI AZIONE */
+.scale-btn, .restart-btn, .delete-btn,
+button[onclick*="scaleDeploy"],
+button[onclick*="restartDeploy"],
+button[onclick*="deleteResource"], /* Uniformato anche per deleteResource generico */
 button[onclick*="deleteDeploy"] {
-    background: #fef2f2;
-    color: #c81e1e;
-    border: 1px solid #fecaca;
-    border-radius: var(--radius-sm);
-    padding: 5px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px; /* Un po' più tondo per eleganza */
     font-size: 0.72rem;
     font-weight: 700;
     cursor: pointer;
     font-family: inherit;
-    transition: all 0.15s;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    letter-spacing: 0.02em;
+    text-transform: uppercase; /* Rende il look più "interfaccia professionale" */
+    border: 1px solid transparent;
 }
-button[onclick*="deleteDeploy"]:hover { background: #e53535; color: #fff; border-color: #e53535; }
 
-.scale-btn {
+/* 2. SCALE (BLUE) */
+.scale-btn, button[onclick*="scaleDeploy"] {
     background: #eff6ff;
     color: #2563eb;
-    border: 1px solid #bfdbfe;
-    border-radius: var(--radius-sm);
-    padding: 5px 10px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
+    border-color: #bfdbfe;
+}
+.scale-btn:hover, button[onclick*="scaleDeploy"]:hover {
+    background: #2563eb;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
 }
 
-.restart-btn {
+/* 3. RESTART (ORANGE) */
+.restart-btn, button[onclick*="restartDeploy"] {
     background: #fff7ed;
     color: #c2620a;
-    border: 1px solid #fed7aa;
-    border-radius: var(--radius-sm);
-    padding: 5px 10px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
+    border-color: #fed7aa;
+}
+.restart-btn:hover, button[onclick*="restartDeploy"]:hover {
+    background: #ea7718;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(234, 119, 24, 0.2);
 }
 
-.delete-btn {
+/* 4. DELETE (RED) */
+.delete-btn, 
+button[onclick*="deleteDeploy"], 
+button[onclick*="deleteResource"] {
     background: #fef2f2;
     color: #c81e1e;
-    border: 1px solid #fecaca;
-    border-radius: var(--radius-sm);
-    padding: 5px 10px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
+    border-color: #fecaca;
+}
+.delete-btn:hover, 
+button[onclick*="deleteDeploy"]:hover,
+button[onclick*="deleteResource"]:hover {
+    background: #e53535;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(229, 53, 53, 0.2);
+}
+
+/* 5. EFFETTO ATTIVO (CLICK) */
+.scale-btn:active, .restart-btn:active, .delete-btn:active {
+    transform: scale(0.95);
 }
 
 /* ════════════════════════════════════════
@@ -1193,6 +1228,32 @@ button[onclick*="deleteDeploy"]:hover { background: #e53535; color: #fff; border
     to { transform: translateY(0); opacity: 1; }
 }
 
+/* Toast Notification Style */
+.toast-restricted {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #e74c3c;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 10000;
+    animation: slideInRight 0.3s ease, fadeOut 0.5s ease 2.5s forwards;
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+    to { opacity: 0; visibility: hidden; }
+}
+
 /* Impedisce alla tabella di uscire dallo sfondo */
 .data-table {
     width: 100%;
@@ -1255,4 +1316,202 @@ button[onclick*="deleteDeploy"]:hover { background: #e53535; color: #fff; border
 .apply-box ul {
     margin: 0;
     padding-left: 20px;
+}
+
+/* Badge per le chiavi dei Secret */
+.key-badge-secret {
+    display: inline-block;
+    border: 1px solid #e2e8f0;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin: 2px;
+    font-size: 0.75rem;
+    background: #ffffff;
+    color: #64748b;
+}
+
+.key-badge-secret i {
+    font-size: 0.65rem;
+    margin-right: 6px;
+    color: #94a3b8;
+}
+
+/* Tag per il tipo di Secret */
+.type-tag {
+    background: #f8fafc;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #475569;
+    border: 1px solid #f1f5f9;
+}
+
+/* Badge per le Keys (Grigio) */
+.key-badge {
+    background: #f1f5f9;
+    color: #475569;
+    padding: 2px 6px;
+    border-radius: 6px;
+    margin-right: 4px;
+    font-size: 0.75rem;
+    font-family: 'Inter', monospace;
+}
+
+.none-text {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+
+.clickable-row {
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+.clickable-row:hover {
+    background-color: rgba(255, 250, 209, 0.4) !important; /* Un giallino tenue per richiamare il tuo brand */
+}
+.resource-name {
+    color: var(--accent);
+}
+
+
+/* Animazione fluida e professionale */
+@keyframes slideUp {
+    from { opacity: 0; transform: scale(0.98) translateY(20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+
+.inspector-card {
+    background: #ffffff;
+    width: 620px;
+    max-width: 95%;
+    max-height: 85vh;
+    border-radius: 28px; /* Più tondo, più moderno */
+    box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.25), 0 0 1px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: none;
+}
+
+/* Header più elegante con sfumatura impercettibile */
+.inspector-header {
+    padding: 24px 32px;
+    background: linear-gradient(135deg, #fffad1 0%, #fff7b0 100%);
+    border-bottom: 1px solid rgba(181, 154, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-title-group { display: flex; align-items: center; gap: 18px; }
+.icon-main { font-size: 2rem; color: #b59a00; filter: drop-shadow(0 2px 4px rgba(181, 154, 0, 0.2)); }
+.header-title-group h3 { margin: 0; color: #1a202c; font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; }
+.header-title-group small { color: #744210; opacity: 0.6; font-weight: 600; font-size: 0.85rem; }
+
+.close-ins-btn {
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(0,0,0,0.05);
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #4a5568;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.close-ins-btn:hover { background: #dfdfdf; color: white; border-color: #dfdfdf; transform: rotate(90deg); }
+
+.inspector-body { 
+    padding: 32px; 
+    overflow-y: auto; 
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e0 transparent;
+}
+
+.ins-section { margin-bottom: 32px; }
+.ins-section h4 {
+    color: #718096; /* Colore più neutro per non urlare */
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 700;
+}
+.ins-section h4 i { color: #b59a00; opacity: 0.8; }
+
+/* Griglia Info: pulita, senza bordi pesanti */
+.ins-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    background: #f8fafc;
+    padding: 20px;
+    border-radius: 20px;
+    border: 1px solid #f1f5f9;
+}
+.grid-item { font-size: 0.9rem; color: #4a5568; display: flex; flex-direction: column; gap: 4px; }
+.grid-item strong { color: #94a3b8; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.grid-item code { color: var(--accent); font-weight: 600; background: transparent; padding: 0; }
+
+/* Container Card: stile "Apple-like" */
+.container-subcard {
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
+    border-radius: 18px;
+    margin-bottom: 12px;
+    padding: 16px 20px;
+    transition: transform 0.2s;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+.container-subcard:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+
+.subcard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.cont-name { font-weight: 700; color: #1a202c; font-size: 0.95rem; }
+
+.img-line { margin: 0; font-size: 0.85rem; }
+.img-line code { 
+    background: #f1f5f9; 
+    padding: 3px 8px; 
+    border-radius: 8px; 
+    color: #475569; 
+    font-size: 0.8rem; 
+    border: 1px solid #e2e8f0;
+}
+.restart-line { font-size: 0.75rem; color: #94a3b8; margin: 8px 0 0; font-weight: 500; }
+
+/* Annotations: look minimalista */
+.annotations-wrapper {
+    background: #f8fafc;
+    padding: 16px;
+    border-radius: 18px;
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid #f1f5f9;
+}
+.annotation-item { 
+    font-size: 0.8rem; 
+    padding: 6px 0;
+    border-bottom: 1px solid #edf2f7; 
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.annotation-item:last-child { border-bottom: none; }
+.ann-key { font-weight: 700; color: #718096; font-size: 0.7rem; }
+.ann-val { color: #4a5568; line-height: 1.5; }
+
+.none-text { font-style: italic; color: #cbd5e0; font-size: 0.85rem; }
+
+/* Labels UI compatta */
+.labels-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }

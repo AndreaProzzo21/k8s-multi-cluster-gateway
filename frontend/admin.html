@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>K8s Gateway — Admin Console</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -824,10 +825,10 @@
         <div class="login-header">
             <div class="login-logo-wrap"><i class="fas fa-shield-alt"></i></div>
             <h1>Admin Console</h1>
-            <p>Infrastructure Control Plane — enter your master key</p>
+            <p>Control Plane - enter your admin key</p>
         </div>
         <div class="form-group">
-            <label>Master API Key</label>
+            <label>Admin Key</label>
             <input type="password" id="masterKeyInput" placeholder="••••••••••••••••••••" onkeydown="if(event.key==='Enter') adminLogin()">
         </div>
         <button class="btn-primary" style="width:100%; justify-content:center;" onclick="adminLogin()">
@@ -841,7 +842,66 @@
 <div id="adminDashboard">
     <nav class="navbar">
         <div class="nav-brand">
-            <i class="fas fa-shield-alt"></i> CLUSTER ADMIN MANAGEMENT
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" style="width: 2.6em; height: 2.6em; vertical-align: middle; overflow: visible; filter: drop-shadow(0px 2px 8px rgba(0,0,0,0.2));">
+                <defs>
+                    <!-- Gradiente principale sfumato ad alta tecnologia -->
+                    <linearGradient id="cyberGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color: currentColor; stop-opacity: 0.7;" />
+                        <stop offset="50%" style="stop-color: currentColor; stop-opacity: 0.9;" />
+                        <stop offset="100%" style="stop-color: currentColor; stop-opacity: 1;" />
+                    </linearGradient>
+                </defs>
+
+                <!-- 1. ORBITE MULTI-CLUSTER (I 3 anelli intrecciati Kubernetes) -->
+                <g fill="none" stroke="url(#cyberGradient)" stroke-width="12" stroke-opacity="0.4">
+                    <circle cx="256" cy="256" r="210" stroke-dasharray="12 12" />
+                    <ellipse cx="256" cy="256" rx="230" ry="130" transform="rotate(45 256 256)" />
+                    <ellipse cx="256" cy="256" rx="230" ry="130" transform="rotate(-45 256 256)" />
+                </g>
+
+                <!-- 2. SATELLITI NODI (Nodi di controllo della rete) -->
+                <g fill="url(#cyberGradient)">
+                    <circle cx="256" cy="46" r="14" />
+                    <circle cx="256" cy="466" r="14" />
+                    <circle cx="46" cy="256" r="14" />
+                    <circle cx="466" cy="256" r="14" />
+                </g>
+
+                <!-- 3. IL TIMONE DI HELM (Struttura portante interna arrotondata) -->
+                <circle cx="256" cy="256" r="130" fill="none" stroke="url(#cyberGradient)" stroke-width="20" />
+                <g stroke="url(#cyberGradient)" stroke-width="22" stroke-linecap="round">
+                    <!-- Maniglie sporgenti del timone completamente smussate -->
+                    <line x1="256" y1="126" x2="256" y2="70" />
+                    <line x1="256" y1="386" x2="256" y2="442" />
+                    <line x1="126" y1="256" x2="70" y2="256" />
+                    <line x1="386" y1="256" x2="442" y2="256" />
+                    
+                    <line x1="164" y1="164" x2="120" y2="120" />
+                    <line x1="348" y1="348" x2="392" y2="392" />
+                    <line x1="164" y1="348" x2="120" y2="392" />
+                    <line x1="348" y1="164" x2="392" y2="120" />
+                </g>
+
+                <!-- 4. GATEWAY RBAC (Scudo Blindato + Lucchetto di Sicurezza) -->
+                <!-- Sagoma esterna del lucchetto/scudo -->
+                <path d="M190,210 C190,160 215,130 256,130 C297,130 322,160 322,210 V250 H190 Z" 
+                      fill="none" stroke="url(#cyberGradient)" stroke-width="24" stroke-linecap="round" />
+                
+                <!-- Corpo dello scudo centrale che copre le intersezioni -->
+                <path d="M166,240 C166,240 256,210 256,210 C256,210 346,240 346,240 V330 C346,400 256,440 256,440 C256,440 166,400 166,330 Z" 
+                      fill="url(#cyberGradient)" stroke="none" />
+
+                <!-- 5. IL CORE (Serratura/Timone K8s in contrasto) -->
+                <!-- Intaglio interno elegante che riprende il logo K8s core in negativo -->
+                <circle cx="256" cy="315" r="32" fill="black" style="mix-blend-mode: destination-out;" />
+                <path d="M256,275 V355 M216,315 H296" stroke="black" stroke-width="12" stroke-linecap="round" style="mix-blend-mode: destination-out;" />
+            </svg>
+            
+            <!-- Testo affiancato ottimizzato -->
+            <span>
+                K8S GATEWAY ADMIN
+            </span>
+            
         </div>
         <div class="nav-right">
             <button class="btn-nav accent" onclick="openClusterModal()"><i class="fas fa-plus"></i> New Cluster</button>
@@ -961,7 +1021,9 @@
 </div>
 
 <div id="toast-container"></div>
+<script src="assets/js/ui.js"></script>
 <script>
+    
     const API = '/api/v1/admin';
     let adminKey = '';
     let currentView = '';
@@ -1214,9 +1276,27 @@
     }
 
     async function deleteCluster(id) {
-        if (!confirm(`Delete cluster "${id}" and all its profiles?\nThis cannot be undone.`)) return;
-        try { await adminRequest(`/clusters/${id}`, 'DELETE'); toast('Cluster deleted', 'success'); loadClusters(); loadBadges(); }
-        catch (e) { toast(e.message, 'error'); }
+        // Chiediamo conferma con stile "Danger"
+        const confirmed = await showConfirm(
+            "Delete Cluster", 
+            `Are you sure you want to delete cluster <strong>"${id}"</strong> and all its associated profiles?<br>This action is irreversible.`,
+            true
+        );
+
+        if (!confirmed) return;
+
+        try {
+            await adminRequest(`/clusters/${id}`, 'DELETE');
+            
+            // Feedback di successo
+            showSuccess('Cluster deleted successfully');
+            
+            // Aggiornamento UI
+            loadClusters(); 
+            loadBadges(); 
+        } catch (e) {
+            showError(e.message);
+        }
     }
 
     // ── PROFILES ──
@@ -1264,9 +1344,27 @@
     }
 
     async function deleteProfile(id) {
-        if (!confirm(`Delete profile #${id}?`)) return;
-        try { await adminRequest(`/profiles/${id}`, 'DELETE'); toast('Profile deleted', 'success'); loadProfiles(); loadBadges(); }
-        catch (e) { toast(e.message, 'error'); }
+        // Conferma standard o danger (consigliato danger se il profilo contiene chiavi/token)
+        const confirmed = await showConfirm(
+            "Delete Profile", 
+            `Are you sure you want to permanently delete profile <strong>#${id}</strong>?`,
+            true
+        );
+
+        if (!confirmed) return;
+
+        try {
+            await adminRequest(`/profiles/${id}`, 'DELETE');
+            
+            // Feedback di successo
+            showSuccess('Profile deleted successfully');
+            
+            // Aggiornamento UI
+            loadProfiles(); 
+            loadBadges(); 
+        } catch (e) {
+            showError(e.message);
+        }
     }
 
 // ── AUDIT ──
@@ -1487,27 +1585,51 @@
         }
     }
 
-    // Aggiorna lo stato di una regola (PATCH /rules/{cluster_id}/{rule_id})
     async function toggleRule(clusterId, ruleId, currentStatus) {
-        const note = currentStatus ? prompt("Motivazione della disabilitazione (opzionale):") : null;
+        let note = null;
+
+        // Se la regola è attiva e la stiamo disabilitando, chiediamo una nota
+        if (currentStatus) {
+            note = await showPrompt(
+                "Disable Rule", 
+                `Please provide a reason for disabling rule <strong>${ruleId}</strong> (optional):`,
+                ""
+            );
+            
+            // Se l'utente chiude la modale con 'Cancel' (restituisce null), interrompiamo
+            if (note === null) return; 
+        }
+
         try {
             await adminRequest(`/audit/rules/${clusterId}/${ruleId}`, 'PATCH', {
                 enabled: !currentStatus,
                 note: note
             });
-            toast(`Rule ${ruleId} updated`, 'success');
-            configureClusterRules(clusterId); // Ricarica la vista
-        } catch (e) { toast(e.message, 'error'); }
+            
+            showSuccess(`Rule ${ruleId} ${!currentStatus ? 'enabled' : 'disabled'} successfully`);
+            configureClusterRules(clusterId); 
+        } catch (e) {
+            showError(e.message);
+        }
     }
 
-    // Resetta le regole al default (POST /rules/{cluster_id}/reset)
     async function resetRules(clusterId) {
-        if (!confirm(`Reset all rules for ${clusterId} to default (Enabled)?`)) return;
+        const confirmed = await showConfirm(
+            "Reset Configuration", 
+            `Are you sure you want to reset all rules for cluster <strong>${clusterId}</strong> to their default state (Enabled)?`,
+            true
+        );
+
+        if (!confirmed) return;
+
         try {
             await adminRequest(`/audit/rules/${clusterId}/reset`, 'POST');
-            toast('Configuration reset', 'success');
+            
+            showSuccess('Configuration reset to default');
             configureClusterRules(clusterId);
-        } catch (e) { toast(e.message, 'error'); }
+        } catch (e) {
+            showError(e.message);
+        }
     }
 
     async function loadAuditResults() {
@@ -1825,6 +1947,150 @@
         document.getElementById('toast-container').appendChild(el);
         setTimeout(() => el.remove(), 3000);
     }
+    /**
+ * Sostituisce il vecchio alert() con una notifica Toast non bloccante.
+ * @param {string|Error} message - Il messaggio o l'oggetto errore
+ * @param {string} type - 'error', 'success', 'warning' (default: error)
+ */
+function showError(message, type = 'error') {
+    // 1. Assicuriamoci che esista il container
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    // 2. Creiamo il toast
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    // Icona in base al tipo
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+    const title = type === 'success' ? 'Success' : 'Error Detected';
+    
+    // Gestione del messaggio (se è un oggetto Error prendiamo .message)
+    const displayMsg = message instanceof Error ? message.message : message;
+
+    toast.innerHTML = `
+        <i class="fas ${icon}"></i>
+        <div class="toast-content">
+            <span class="toast-title">${title}</span>
+            <span class="toast-message">${displayMsg}</span>
+        </div>
+    `;
+
+    // 3. Click per chiudere subito
+    toast.onclick = () => removeToast(toast);
+
+    // 4. Aggiungiamo al container
+    container.appendChild(toast);
+
+    // 5. Auto-rimozione dopo 5 secondi
+    setTimeout(() => removeToast(toast), 5000);
+}
+
+function removeToast(toast) {
+    toast.style.animation = 'toastFadeOut 0.3s ease-in forwards';
+    toast.addEventListener('animationend', () => toast.remove());
+}
+
+// Shortcut per messaggi di successo (opzionale)
+function showSuccess(msg) {
+    showError(msg, 'success');
+}
+
+/**
+ * Sostituisce il confirm() nativo.
+ * Ritorna una Promise che risolve a true (Sì) o false (No).
+ */
+function showConfirm(title, message, isDanger = false) {
+    return new Promise((resolve) => {
+        // Creiamo o recuperiamo l'overlay
+        let overlay = document.getElementById('modal-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'modal-overlay';
+            document.body.appendChild(overlay);
+        }
+
+        overlay.style.display = 'flex';
+
+        overlay.innerHTML = `
+            <div class="confirm-modal">
+                <h3><i class="fas ${isDanger ? 'fa-exclamation-triangle' : 'fa-question-circle'}" 
+                       style="color:${isDanger ? 'var(--danger)' : 'var(--accent)'}"></i> 
+                    ${title}
+                </h3>
+                <p>${message}</p>
+                <div class="modal-footer">
+                    <button class="btn-modal-cancel" id="confirm-no">Cancel</button>
+                    <button class="${isDanger ? 'btn-modal-danger' : 'btn-modal-primary'}" id="confirm-yes" style="padding: 8px 20px;">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // Gestione pulsanti
+        document.getElementById('confirm-yes').onclick = () => {
+            overlay.style.display = 'none';
+            resolve(true);
+        };
+        document.getElementById('confirm-no').onclick = () => {
+            overlay.style.display = 'none';
+            resolve(false);
+        };
+    });
+}
+
+/**
+ * Sostituisce il prompt() nativo.
+ * Ritorna una Promise che risolve alla stringa inserita o null se annullato.
+ */
+function showPrompt(title, message, defaultValue = '') {
+    return new Promise((resolve) => {
+        let overlay = document.getElementById('modal-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'modal-overlay';
+            document.body.appendChild(overlay);
+        }
+
+        overlay.style.display = 'flex';
+
+        overlay.innerHTML = `
+            <div class="confirm-modal">
+                <h3><i class="fas fa-edit" style="color:var(--accent)"></i> ${title}</h3>
+                <p>${message}</p>
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <input type="text" id="prompt-input" value="${defaultValue}" 
+                           style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); font-family:inherit;">
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-modal-cancel" id="prompt-cancel">Cancel</button>
+                    <button class="btn-modal-primary" id="prompt-ok" style="padding: 8px 20px;">Ok</button>
+                </div>
+            </div>
+        `;
+
+        const input = document.getElementById('prompt-input');
+        input.focus();
+        // Permette di premere invio invece di cliccare Save
+        input.onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('prompt-ok').click(); };
+
+        document.getElementById('prompt-ok').onclick = () => {
+            const val = input.value;
+            overlay.style.display = 'none';
+            resolve(val);
+        };
+        document.getElementById('prompt-cancel').onclick = () => {
+            overlay.style.display = 'none';
+            resolve(null);
+        };
+    });
+}
+
 
     checkAuth();
 </script>

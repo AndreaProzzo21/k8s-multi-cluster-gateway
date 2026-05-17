@@ -50,6 +50,7 @@ refreshCurrentView();
 async function loadNodes() {
     currentView = 'nodes';
     const resArea = document.getElementById('resultArea');
+    const ns = window.currentNamespace;
     document.getElementById('controlsContainer').style.display = 'none';
     resArea.innerHTML = '<div style="text-align:center; padding:40px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
 
@@ -58,7 +59,7 @@ async function loadNodes() {
         const results = await Promise.allSettled([
             apiCall('/cluster/nodes'),
             apiCall('/namespaces'),
-            apiCall('/namespaces/default/deployments')
+            apiCall(`/namespaces/${ns}/deployments`)
         ]);
 
         const nodes            = results[0].status === 'fulfilled' ? results[0].value : null;
@@ -66,12 +67,7 @@ async function loadNodes() {
         const deploymentsSample = results[2].status === 'fulfilled' ? results[2].value : null;
 
         if (!nodes) {
-            resArea.innerHTML = `
-                <div style="text-align:center; padding:60px; color:var(--text-muted);">
-                    <i class="fas fa-shield-alt fa-4x" style="margin-bottom:20px; color:var(--warning);"></i>
-                    <h2>Accesso Limitato</h2>
-                    <p>Il tuo profilo non dispone dei permessi necessari per visualizzare le risorse a livello di cluster.</p>
-                </div>`;
+            renderRestrictedAccess();
             return;
         }
 
@@ -158,7 +154,7 @@ async function loadNodes() {
                  border-radius:14px; padding:18px 20px; border-left:4px solid #64748b;">
                 <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase;
                             letter-spacing:0.1em; color:var(--text-muted); margin-bottom:8px;">
-                    Deployments (default)
+                    Deployments (${ns})
                 </div>
                 <div style="font-size:1.4rem; font-weight:700; color:var(--text-main);">
                     ${deploymentsSample !== null
@@ -529,14 +525,30 @@ async function loadStorageClasses() {
 }
 
 async function deleteStorageClass(name) {
-    if (!confirm(`ATTENZIONE: Eliminare la StorageClass '${name}'? Questo impedirà la creazione di nuovi volumi basati su questo profilo.`)) return;
-    
+    // 1. Usiamo showConfirm invece del confirm nativo
+    // Passiamo true come terzo parametro (isDanger) per attivare lo stile rosso
+    const confirmed = await showConfirm(
+        "Delete StorageClass", 
+        `Warning: Are you sure you want to delete '${name}'? This will prevent the creation of new volumes based on this profile.`,
+        true 
+    );
+
+    if (!confirmed) return;
+
     try {
+        // Chiamata API
         await apiCall(`/cluster/storage-classes/${name}`, 'DELETE');
-        alert(`StorageClass '${name}' eliminata con successo.`);
-        loadStorageClasses(); // Ricarica la tabella
+
+        // 2. Usiamo showSuccess invece dell'alert nativo
+        showSuccess(`StorageClass '${name}' deleted successfully.`);
+
+        // 3. Ricarichiamo la tabella (modifica il nome se la funzione è diversa)
+        if (typeof loadStorageClasses === "function") {
+            loadStorageClasses();
+        }
     } catch (err) {
-        showError("Impossibile eliminare la StorageClass: " + err.message);
+        // 4. Usiamo showError per gestire il fallimento
+        showError("Failed to delete StorageClass: " + (err.message || err));
     }
 }
 

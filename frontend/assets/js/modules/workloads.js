@@ -5,7 +5,6 @@ async function loadPods() {
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     
-    // Recupero filtro (ora l'elemento esiste sicuramente perché chiamato sopra)
     const labelSelector = document.getElementById('labelFilter')?.value || '';
     let url = `/namespaces/${ns}/pods`;
     if (labelSelector) url += `?label_selector=${encodeURIComponent(labelSelector)}`;
@@ -34,25 +33,32 @@ async function loadPods() {
             const nodeDisplay = p.node_name 
                 ? `<span style="font-size:0.75rem; color:var(--accent); font-weight:600;">${p.node_name}</span>`
                 : '<span style="color:var(--text-muted); font-size:0.75rem;">Unassigned</span>';
+
+            // Aggiungiamo onclick sulla riga e la classe 'clickable-row'
             html += `
-                <tr>
-                    <td><b>${p.name}</b></td>
+                <tr onclick="inspectResource('pods', '${p.name}')" class="clickable-row">
+                    <td><b class="resource-name">${p.name}</b></td>
                     <td>${nodeDisplay}</td>
                     <td>${renderLabels(p.labels)}</td>
                     <td><span class="badge ${sClass}">${p.status}</span></td>
                     <td><code style="font-size:0.75rem">${p.pod_ip || 'N/A'}</code></td>
-                    <td style="text-align:right; white-space: nowrap;">
-                        <button onclick="viewLogs('${p.name}', this)" class="btn-small table-btn" title="View Logs"><i class="fas fa-terminal"></i></button>
-                        <button onclick="downloadLogs('${p.name}')" class="btn-small table-btn" title="Download Logs"><i class="fas fa-file-download"></i></button>
-                        <button onclick="deleteResource('pods', '${p.name}')" class="btn-small delete-btn" title="Delete Pod"><i class="fas fa-trash"></i></button>
+                    <td style="text-align:right; white-space: nowrap;" onclick="event.stopPropagation()">
+                        <button onclick="viewLogs('${p.name}', this)" class="btn-small table-btn" title="View Logs">
+                            <i class="fas fa-terminal"></i>
+                        </button>
+                        <button onclick="downloadLogs('${p.name}')" class="btn-small table-btn" title="Download Logs">
+                            <i class="fas fa-file-download"></i>
+                        </button>
+                        <button onclick="deleteResource('pods', '${p.name}')" class="btn-small delete-btn" title="Delete Pod">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </td>
                 </tr>`;
         });
 
         resArea.innerHTML = data.length > 0 
-            ? html + '</tbody></table><div id="logConsoleArea"></div>' // <-- AGGIUNTO IL DIV QUI
+            ? html + '</tbody></table><div id="logConsoleArea"></div>' 
             : `<p style="text-align:center; margin-top:20px; color:var(--text-muted);">No Pod found in namespace ${ns}.</p>`;
-
 
     } catch (err) { 
         if (err.message === "RESTRICTED") {
@@ -62,14 +68,15 @@ async function loadPods() {
         }
     }
 }
+
+
 async function loadDeployments() {
     currentView = 'deployments';
-    renderLabelFilter(true); // <--- MOSTRA IL FILTRO
+    renderLabelFilter(true);
     
     const ns = window.currentNamespace;
     const resArea = document.getElementById('resultArea');
     
-    // Recupero filtro (ora l'elemento esiste sicuramente perché chiamato sopra)
     const labelSelector = document.getElementById('labelFilter')?.value || '';
     let url = `/namespaces/${ns}/deployments`;
     if (labelSelector) url += `?label_selector=${encodeURIComponent(labelSelector)}`;
@@ -93,13 +100,17 @@ async function loadDeployments() {
                 <tbody>`;
 
         data.forEach(d => {
+            // Riferimento allo stato per il badge
+            const isHealthy = d.replicas_ready === d.replicas_desired;
+            const statusClass = isHealthy ? 'status-running' : 'status-pending';
+
             html += `
-                <tr>
-                    <td><b>${d.name}</b></td>
+                <tr onclick="inspectResource('deployments', '${d.name}')" class="clickable-row">
+                    <td><b class="resource-name">${d.name}</b></td>
                     <td>${renderLabels(d.labels)}</td>
                     <td><b>${d.replicas_ready}</b>/${d.replicas_desired}</td>
-                    <td><span class="badge status-running">${d.status}</span></td>
-                    <td style="text-align:right; white-space: nowrap;">
+                    <td><span class="badge ${statusClass}">${d.status}</span></td>
+                    <td style="text-align:right; white-space: nowrap;" onclick="event.stopPropagation()">
                         <button onclick="scaleDeploy('${d.name}', ${d.replicas_desired})" class="btn-small scale-btn" title="Scale">Scale</button>
                         <button onclick="restartDeploy('${d.name}')" class="btn-small restart-btn" title="Restart Rollout"><i class="fas fa-sync"></i></button>
                         <button onclick="deleteResource('deployments', '${d.name}')" class="btn-small delete-btn" title="Delete Deployment"><i class="fas fa-trash"></i></button>
@@ -452,5 +463,191 @@ async function loadStatefulSets() {
     }
 }
 
+async function inspectResource(type, name) {
+    const ns = window.currentNamespace;
+    
+    try {
+        const data = await apiCall(`/namespaces/${ns}/${type}/${name}`);
+        console.log("Dati ricevuti dal backend:", data); // Verifica se il JSON è completo
+        showInspectorModal(data);
+    } catch (err) {
+        showError("Incapable of retrieving details: " + err.message);
+    }
+}
 
+function showInspectorModal(info) {
+    let overlay = document.getElementById('inspector-overlay');
+    
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'inspector-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            backdrop-filter: blur(6px);
+        `;
+        document.body.appendChild(overlay);
+        
+        overlay.onclick = (e) => {
+            if (e.target === overlay) overlay.style.display = 'none';
+        };
+    }
 
+    overlay.style.display = 'flex';
+
+    // --- LOGICA DI RILEVAMENTO TIPO ---
+    let type = 'Unknown';
+    let icon = 'fa-info-circle';
+    let accentColor = '#b59a00';
+
+    if (info.pod_ip || info.host_ip) {
+        type = 'Pod';
+        icon = 'fa-cube';
+    } else if (info.strategy || info.replicas_spec !== undefined) {
+        type = 'Deployment';
+        icon = 'fa-layer-group';
+    } else if (info.cluster_ip || info.type) {
+        type = 'Service';
+        icon = 'fa-project-diagram';
+    }
+
+    const creationDate = info.creation_timestamp || info.start_time;
+    const formattedDate = creationDate ? new Date(creationDate).toLocaleString() : 'N/A';
+
+    // --- RENDERIZZAZIONE GRID DINAMICA ---
+    let gridHtml = '';
+    if (type === 'Pod') {
+        gridHtml = `
+            <div class="grid-item"><strong>Status</strong> <span class="badge ${info.status?.toLowerCase() === 'running' ? 'status-running' : 'status-pending'}">${info.status}</span></div>
+            <div class="grid-item"><strong>Node</strong> <span>${info.node_name || 'Unassigned'}</span></div>
+            <div class="grid-item"><strong>Pod IP</strong> <code>${info.pod_ip || 'N/A'}</code></div>
+            <div class="grid-item"><strong>Host IP</strong> <code>${info.host_ip || 'N/A'}</code></div>
+        `;
+    } else if (type === 'Deployment') {
+        gridHtml = `
+            <div class="grid-item"><strong>Strategy</strong> <span>${info.strategy || 'N/A'}</span></div>
+            <div class="grid-item"><strong>Desired</strong> <span>${info.replicas_spec}</span></div>
+            <div class="grid-item"><strong>Updated</strong> <span>${info.replicas_status?.updated || 0}</span></div>
+            <div class="grid-item"><strong>Available</strong> <span class="badge status-running">${info.replicas_status?.available || 0}</span></div>
+        `;
+    } else if (type === 'Service') {
+        gridHtml = `
+            <div class="grid-item"><strong>Type</strong> <span>${info.type || 'N/A'}</span></div>
+            <div class="grid-item"><strong>Cluster IP</strong> <code>${info.cluster_ip || 'N/A'}</code></div>
+            <div class="grid-item"><strong>Session Affinity</strong> <span>${info.session_affinity || 'None'}</span></div>
+            <div class="grid-item"><strong>Selector</strong> <span style="font-size:0.7rem; color:#718096;">${info.selector ? Object.entries(info.selector).map(([k,v]) => `${k}=${v}`).join(', ') : 'None'}</span></div>
+        `;
+    }
+
+    // --- SEZIONE PORTE (SOLO PER SERVICE) ---
+    let portsSection = '';
+    if (type === 'Service' && info.ports && info.ports.length > 0) {
+        portsSection = `
+            <div class="ins-section">
+                <h4><i class="fas fa-plug"></i> Service Ports</h4>
+                <div class="containers-list">
+                    ${info.ports.map(p => `
+                        <div class="container-subcard" style="border-left: 3px solid #b59a00;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <span style="font-weight:600; font-size:0.85rem;">${p.name || 'unnamed'}</span>
+                                <span class="badge" style="background:#f1f5f9; color:#475569;">${p.protocol}</span>
+                            </div>
+                            <div style="margin-top:5px; font-size:0.8rem;">
+                                <span>Port: <strong>${p.port}</strong></span>
+                                <i class="fas fa-long-arrow-alt-right" style="margin:0 8px; color:#cbd5e0;"></i>
+                                <span>Target: <strong>${p.target_port}</strong></span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // --- GESTIONE ANNOTATIONS ---
+    const annotationsHtml = info.annotations && Object.keys(info.annotations).length > 0
+        ? Object.entries(info.annotations)
+            .filter(([k]) => !k.includes('kubectl.kubernetes.io/last-applied-configuration'))
+            .map(([k, v]) => `
+                <div class="annotation-item">
+                    <span class="ann-key">${k}:</span> <span class="ann-val">${v}</span>
+                </div>
+            `).join('')
+        : '<span class="none-text">No annotations found</span>';
+
+    // --- COSTRUZIONE FINALE ---
+    overlay.innerHTML = `
+        <div class="inspector-card animate-slide-up">
+            <div class="inspector-header">
+                <div class="header-title-group">
+                    <i class="fas ${icon} icon-main" style="color: ${accentColor}"></i>
+                    <div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <h3 style="margin:0;">${info.name}</h3>
+                            <span style="font-size:0.65rem; background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:4px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:#666;">${type}</span>
+                        </div>
+                        <small>${info.namespace} • Resource v.${info.resource_version || '1'}</small>
+                    </div>
+                </div>
+                <button class="close-ins-btn" onclick="document.getElementById('inspector-overlay').style.display='none'">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="inspector-body">
+                <div class="ins-section">
+                    <h4><i class="fas fa-list-ul"></i> Configuration & Status</h4>
+                    <div class="ins-grid">
+                        ${gridHtml}
+                        <div class="grid-item" style="grid-column: span 2;"><strong>Created at</strong> <span>${formattedDate}</span></div>
+                    </div>
+                </div>
+
+                ${portsSection}
+
+                ${info.containers ? `
+                <div class="ins-section">
+                    <h4><i class="fas fa-box-open"></i> Containers (${info.containers.length})</h4>
+                    <div class="containers-list">
+                        ${info.containers.map(c => `
+                            <div class="container-subcard">
+                                <div class="subcard-header">
+                                    <span class="cont-name"><i class="fas fa-microchip"></i> ${c.name}</span>
+                                    ${c.ready !== undefined ? 
+                                        `<span class="badge ${c.ready ? 'status-running' : 'status-pending'}">${c.ready ? 'Ready' : 'Not Ready'}</span>` 
+                                        : ''}
+                                </div>
+                                <div class="subcard-body">
+                                    <p class="img-line"><strong>Image:</strong> <code>${c.image}</code></p>
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        ${c.restart_count !== undefined ? `<span class="restart-line"><strong>Restarts:</strong> ${c.restart_count}</span>` : '<span></span>'}
+                                        ${c.ports && c.ports.length > 0 ? `<span style="font-size:0.7rem; color:#718096;"><i class="fas fa-door-open"></i> Ports: ${c.ports.join(', ')}</span>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>` : ''}
+
+                <div class="ins-section">
+                    <h4><i class="fas fa-tags"></i> Labels</h4>
+                    <div class="labels-wrapper">
+                        ${renderLabels(info.labels)}
+                    </div>
+                </div>
+
+                <div class="ins-section">
+                    <h4><i class="fas fa-sticky-note"></i> Annotations</h4>
+                    <div class="annotations-wrapper">
+                        ${annotationsHtml}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}

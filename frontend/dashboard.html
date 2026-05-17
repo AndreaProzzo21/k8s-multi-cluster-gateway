@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>K8s Gateway - Console</title>
+    <title>K8s Gateway — Dashboard</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -11,7 +11,66 @@
 <body class="dashboard-page">
     <nav class="navbar">
         <div class="nav-brand">
-            <i class="fas fa-cubes"></i> KUBERNETES CLOUD GATEWAY
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" style="width: 2.6em; height: 2.6em; vertical-align: middle; overflow: visible; filter: drop-shadow(0px 2px 8px rgba(0,0,0,0.2));">
+                <defs>
+                    <!-- Gradiente principale sfumato ad alta tecnologia -->
+                    <linearGradient id="cyberGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color: currentColor; stop-opacity: 0.7;" />
+                        <stop offset="50%" style="stop-color: currentColor; stop-opacity: 0.9;" />
+                        <stop offset="100%" style="stop-color: currentColor; stop-opacity: 1;" />
+                    </linearGradient>
+                </defs>
+
+                <!-- 1. ORBITE MULTI-CLUSTER (I 3 anelli intrecciati Kubernetes) -->
+                <g fill="none" stroke="url(#cyberGradient)" stroke-width="12" stroke-opacity="0.4">
+                    <circle cx="256" cy="256" r="210" stroke-dasharray="12 12" />
+                    <ellipse cx="256" cy="256" rx="230" ry="130" transform="rotate(45 256 256)" />
+                    <ellipse cx="256" cy="256" rx="230" ry="130" transform="rotate(-45 256 256)" />
+                </g>
+
+                <!-- 2. SATELLITI NODI (Nodi di controllo della rete) -->
+                <g fill="url(#cyberGradient)">
+                    <circle cx="256" cy="46" r="14" />
+                    <circle cx="256" cy="466" r="14" />
+                    <circle cx="46" cy="256" r="14" />
+                    <circle cx="466" cy="256" r="14" />
+                </g>
+
+                <!-- 3. IL TIMONE DI HELM (Struttura portante interna arrotondata) -->
+                <circle cx="256" cy="256" r="130" fill="none" stroke="url(#cyberGradient)" stroke-width="20" />
+                <g stroke="url(#cyberGradient)" stroke-width="22" stroke-linecap="round">
+                    <!-- Maniglie sporgenti del timone completamente smussate -->
+                    <line x1="256" y1="126" x2="256" y2="70" />
+                    <line x1="256" y1="386" x2="256" y2="442" />
+                    <line x1="126" y1="256" x2="70" y2="256" />
+                    <line x1="386" y1="256" x2="442" y2="256" />
+                    
+                    <line x1="164" y1="164" x2="120" y2="120" />
+                    <line x1="348" y1="348" x2="392" y2="392" />
+                    <line x1="164" y1="348" x2="120" y2="392" />
+                    <line x1="348" y1="164" x2="392" y2="120" />
+                </g>
+
+                <!-- 4. GATEWAY RBAC (Scudo Blindato + Lucchetto di Sicurezza) -->
+                <!-- Sagoma esterna del lucchetto/scudo -->
+                <path d="M190,210 C190,160 215,130 256,130 C297,130 322,160 322,210 V250 H190 Z" 
+                      fill="none" stroke="url(#cyberGradient)" stroke-width="24" stroke-linecap="round" />
+                
+                <!-- Corpo dello scudo centrale che copre le intersezioni -->
+                <path d="M166,240 C166,240 256,210 256,210 C256,210 346,240 346,240 V330 C346,400 256,440 256,440 C256,440 166,400 166,330 Z" 
+                      fill="url(#cyberGradient)" stroke="none" />
+
+                <!-- 5. IL CORE (Serratura/Timone K8s in contrasto) -->
+                <!-- Intaglio interno elegante che riprende il logo K8s core in negativo -->
+                <circle cx="256" cy="315" r="32" fill="black" style="mix-blend-mode: destination-out;" />
+                <path d="M256,275 V355 M216,315 H296" stroke="black" stroke-width="12" stroke-linecap="round" style="mix-blend-mode: destination-out;" />
+            </svg>
+            
+            <!-- Testo affiancato ottimizzato -->
+            <span>
+                K8S GATEWAY DASHBOARD 
+            </span>
+            
         </div>
         
         <div class="nav-right-container">
@@ -54,7 +113,7 @@
 
             <div class="sidebar-section">Workloads</div>
             <ul>
-                <li id="menu-pods" class="active" onclick="setActive(this); loadPods()">
+                <li id="menu-pods" onclick="setActive(this); loadPods()">
                     <i class="fas fa-microchip"></i> Pods List
                 </li>
                 <li id="menu-deps" onclick="setActive(this); loadDeployments()">
@@ -120,8 +179,12 @@
                     <div id="nsContextArea" style="display: flex; gap: 8px; align-items: center;"></div>
                 </div>
 
-                <div id="dynamicControlsArea" style="display: flex; align-items: center; gap: 10px;"></div>
-                <button onclick="refreshCurrentView()" class="scale-btn">Refresh</button>
+                <div id="dynamicControlsArea" style="display: flex; align-items: center; gap: 10px;">
+                    </div>
+                <button onclick="refreshCurrentView()" class="refresh-btn">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Refresh</span>
+                </button>
             </div>
 
             <div id="resultArea">
@@ -155,10 +218,15 @@
     document.getElementById('displayCluster').innerText = localStorage.getItem('current_cluster') || 'N/A';
     document.getElementById('displayProfile').innerText = localStorage.getItem('current_profile') || 'N/A';
 
-    window.currentView      = 'pods';
+    window.currentView      = 'pods'; // Default prudenziale
     window.currentNamespace = localStorage.getItem('last_ns') || 'default';
+    window.userProfile      = 'restricted'; // Default per sicurezza (Zero Trust)
 
     function refreshCurrentView() {
+        if (window.userProfile === 'restricted' && window.currentView === 'nodes') {
+            renderRestrictedAccess();
+            return;
+        }
         const viewMap = {
             pods:            loadPods,
             deployments:     loadDeployments,
@@ -201,21 +269,51 @@
     }
 
     async function initDashboard() {
-        renderLoadingOverlay(true, "Connecting to cluster...");
+        renderLoadingOverlay(true, "Session configuration...");
         try {
+            // 1. Check connettività
             await apiCall('/cluster/health');
-            // ✅ Health check passato: da ora i 504 operativi fanno redirect
+            
+            // 2. Recupero profilo RBAC reale dal cluster
+            const authInfo = await apiCall('/auth/me');
+            
+            // Salviamo lo stato globale
+            window.userProfile = authInfo.profile; 
+            window.canListNamespaces = authInfo.can_list_namespaces;
+            
+            // Aggiorniamo le label nell'header
+            document.getElementById('displayProfile').innerText = localStorage.getItem('current_profile') || 'N/A';
+            document.getElementById('displayCluster').innerText = localStorage.getItem('current_cluster') || 'N/A';
+
             window._dashboardReady = true;
+
+            // 3. LOGICA DI INDIRIZZAMENTO (Senza nascondere nulla)
+            // Decidiamo solo quale elemento attivare graficamente all'avvio
+            let targetMenuId = (authInfo.profile === "admin") ? 'menu-nodes' : 'menu-pods';
+            window.currentView = (authInfo.profile === "admin") ? 'nodes' : 'pods';
+            
+            const targetEl = document.getElementById(targetMenuId);
+            
+            // Reset grafico sidebar e attivazione target
+            document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
+            if(targetEl) targetEl.classList.add('active');
+
+            // 4. GESTIONE NAMESPACE
+            // Se può elencarli carichiamo la select, altrimenti mostriamo l'input manuale
+            if (authInfo.can_list_namespaces) {
+                await loadNamespaceList(); 
+            } else {
+                showManualInput(); 
+            }
+
             renderLoadingOverlay(false);
-            loadNamespaceList();
+            
+            // 5. Caricamento finale dei dati per la vista scelta
+            refreshCurrentView();
+
         } catch (err) {
-            // CLUSTER_UNREACHABLE o backend down: mostriamo l'overlay di errore.
-            // NON facciamo redirect: l'utente sceglie Retry o Logout.
-            handleLoadingError(
-                err.message === "CLUSTER_UNREACHABLE"
-                    ? "The host may be powered off or the cluster is not responding."
-                    : (err.message || "Backend not responding.")
-            );
+            console.error("Inizializzazione fallita:", err);
+            handleLoadingError(err.message || "Errore di comunicazione con il cluster.");
         }
     }
 
