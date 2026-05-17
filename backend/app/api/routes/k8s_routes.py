@@ -13,6 +13,17 @@ from app.api.dependencies.get_core_manager import get_current_core_manager
 
 router = APIRouter()
 
+@router.get("/auth/me")
+async def get_user_profile(
+    manager: CoreManager = Depends(get_current_core_manager)
+):
+    """
+    Analizza i permessi RBAC del token in tempo reale sul cluster.
+    Determina se la dashboard deve mostrare la vista 'Nodi' (Admin)
+    o la vista 'Pod' con inserimento manuale del namespace (Restricted).
+    """
+    return await _run(manager.get_permissions_summary)
+
 
 # --- CONFIGURAZIONE WORKERS ---
 # Creiamo un pool dedicato per le chiamate Kubernetes.
@@ -103,19 +114,19 @@ async def delete_cluster_namespace(
 @router.get("/namespaces/{namespace}/configmaps")
 async def get_configmaps(
     namespace: str,
+    label_selector: str = None,
     manager: CoreManager = Depends(get_current_core_manager)
 ):
-    """Elenca le ConfigMap nel namespace specificato."""
-    return await _run(manager.list_configmaps, namespace)
-
+    return await _run(manager.list_configmaps, namespace, label_selector)
 
 @router.get("/namespaces/{namespace}/secrets")
 async def get_secrets(
     namespace: str,
+    label_selector: str = None,
     manager: CoreManager = Depends(get_current_core_manager)
 ):
-    """Elenca i Secret nel namespace specificato (solo nome, tipo e chiavi — mai i valori)."""
-    return await _run(manager.list_secrets, namespace)
+    return await _run(manager.list_secrets, namespace, label_selector)
+
 
 
 @router.get("/namespaces/{namespace}/events")
@@ -238,12 +249,12 @@ async def delete_deployment(
 # ---------------------------------------------------------------------------
 
 @router.get("/namespaces/{namespace}/services")
-async def list_services(
+async def get_services(
     namespace: str,
+    label_selector: str = None,
     manager: CoreManager = Depends(get_current_core_manager)
 ):
-    """Elenca i Service nel namespace con tipo, ClusterIP e timestamp di creazione."""
-    return await _run(manager.list_services_in_namespace, namespace)
+    return await _run(manager.list_services_in_namespace, namespace, label_selector)
 
 
 @router.get("/namespaces/{namespace}/services/{name}")
@@ -407,12 +418,12 @@ async def del_binding(
 # ---------------------------------------------------------------------------
 
 @router.get("/namespaces/{namespace}/ingress")
-async def get_ingress_list(
+async def get_ingress(
     namespace: str,
+    label_selector: str = None,
     manager: CoreManager = Depends(get_current_core_manager)
 ):
-    """Elenca gli Ingress nel namespace con host, indirizzi e timestamp di creazione."""
-    return await _run(manager.list_ingress, namespace)
+    return await _run(manager.list_ingress, namespace, label_selector)
 
 
 @router.delete("/namespaces/{namespace}/ingress/{name}")

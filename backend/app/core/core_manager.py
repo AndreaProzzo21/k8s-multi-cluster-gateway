@@ -25,6 +25,7 @@ class CoreManager:
         self.rbac_v1 = k8s_apis["rbac_v1"]
         self.networking_v1 = k8s_apis["networking_v1"]
         self.storage_v1 = k8s_apis["storage_v1"]
+        self.auth_v1 = k8s_apis["authorization_v1"]
         self.api_client = self.core_v1.api_client
 
 
@@ -44,6 +45,51 @@ class CoreManager:
             }
         except Exception as e:
             self._handle_exception(e, "Health Check")
+    
+    def get_permissions_summary(self, **kwargs) -> dict:
+        try:
+            # 1. Verifica se è Cluster Admin (Accesso ai Nodi)
+            can_list_nodes = self.auth_v1.create_self_subject_access_review(
+                body=client.V1SelfSubjectAccessReview(
+                    spec=client.V1SelfSubjectAccessReviewSpec(
+                        resource_attributes=client.V1ResourceAttributes(verb="list", resource="nodes")
+                    )
+                ), **kwargs
+            ).status.allowed
+
+            if can_list_nodes:
+                return {
+                    "profile": "admin",
+                    "can_list_namespaces": True,
+                    "allowed_namespaces": ["*"]
+                }
+
+            # 2. Se non è admin, verifichiamo se può almeno ELENCARE i namespace
+            can_list_ns = self.auth_v1.create_self_subject_access_review(
+                body=client.V1SelfSubjectAccessReview(
+                    spec=client.V1SelfSubjectAccessReviewSpec(
+                        resource_attributes=client.V1ResourceAttributes(verb="list", resource="namespaces")
+                    )
+                ), **kwargs
+            ).status.allowed
+
+            if can_list_ns:
+                return {
+                    "profile": "global_viewer",
+                    "can_list_namespaces": True,
+                    "allowed_namespaces": ["*"] # Può vederli tutti anche se non è admin
+                }
+
+            # 3. Se è restricted, proviamo a vedere se ha accesso al namespace 'default'
+            # (O potremmo ritornare una lista vuota e forzare il manual input nel frontend)
+            return {
+                "profile": "restricted",
+                "can_list_namespaces": False,
+                "allowed_namespaces": [] 
+            }
+
+        except Exception as e:
+            self._handle_exception(e, "Permission Summary")
 
 # --- DELETE OPERATIONS ---
 
@@ -127,18 +173,18 @@ class CoreManager:
             self._handle_exception(e, f"Eliminazione Namespace '{name}'")
 
     # --- CONFIGMAPS, SECRETS, EVENTS ---
-
-    def list_configmaps(self, namespace):
+    def list_configmaps(self, namespace, label_selector=None):
         try:
-            cms = self.core_v1.list_namespaced_config_map(namespace)
-            return [{"name": cm.metadata.name, "keys": list(cm.data.keys()) if cm.data else []} for cm in cms.items]
+            # Passiamo label_selector alla chiamata ufficiale K8s
+            cms = self.core_v1.list_namespaced_config_map(namespace, label_selector=label_selector)
+            return [{"name": cm.metadata.name, "keys": list(cm.data.keys()) if cm.data else [], "labels": cm.metadata.labels or {}} for cm in cms.items]
         except Exception as e:
             self._handle_exception(e, f"List ConfigMaps in {namespace}")
 
-    def list_secrets(self, namespace):
+    def list_secrets(self, namespace, label_selector=None):
         try:
-            secrets = self.core_v1.list_namespaced_secret(namespace)
-            return [{"name": s.metadata.name, "type": s.type, "keys": list(s.data.keys()) if s.data else []} for s in secrets.items]
+            secrets = self.core_v1.list_namespaced_secret(namespace, label_selector=label_selector)
+            return [{"name": s.metadata.name, "type": s.type, "keys": list(s.data.keys()) if s.data else [], "labels": s.metadata.labels or {}} for s in secrets.items]
         except Exception as e:
             self._handle_exception(e, f"List Secrets in {namespace}")
 
@@ -201,14 +247,27 @@ class CoreManager:
     def get_pod_by_name(self, name: str, namespace: str):
         try:
             pod = self.core_v1.read_namespaced_pod(name=name, namespace=namespace)
+            
+            # Estraiamo informazioni sui container
+            containers = [{
+                "name": c.name,
+                "image": c.image,
+                "ready": next((s.ready for s in (pod.status.container_statuses or []) if s.name == c.name), False),
+                "restart_count": next((s.restart_count for s in (pod.status.container_statuses or []) if s.name == c.name), 0)
+            } for c in pod.spec.containers]
+
             return {
                 "name": pod.metadata.name,
                 "namespace": pod.metadata.namespace,
                 "status": pod.status.phase,
                 "pod_ip": pod.status.pod_ip,
                 "host_ip": pod.status.host_ip,
+                "node_name": pod.spec.node_name,
                 "start_time": pod.status.start_time,
-                "labels": pod.metadata.labels
+                "labels": pod.metadata.labels or {},
+                "annotations": pod.metadata.annotations or {},
+                "containers": containers,
+                "resource_version": pod.metadata.resource_version
             }
         except Exception as e:
             self._handle_exception(e, f"Dettaglio Pod '{name}'")
@@ -243,6 +302,14 @@ class CoreManager:
     def get_deployment_by_name(self, name: str, namespace: str):
         try:
             dep = self.apps_v1.read_namespaced_deployment(name=name, namespace=namespace)
+            
+            # Estraiamo tutti i container definiti nel template
+            containers = [{
+                "name": c.name,
+                "image": c.image,
+                "ports": [p.container_port for p in c.ports] if c.ports else []
+            } for c in dep.spec.template.spec.containers]
+
             return {
                 "name": dep.metadata.name,
                 "namespace": dep.metadata.namespace,
@@ -250,14 +317,18 @@ class CoreManager:
                 "replicas_status": {
                     "total": dep.status.replicas or 0,
                     "available": dep.status.available_replicas or 0,
-                    "ready": dep.status.ready_replicas or 0
+                    "ready": dep.status.ready_replicas or 0,
+                    "updated": dep.status.updated_replicas or 0
                 },
-                "image": dep.spec.template.spec.containers[0].image,
                 "strategy": dep.spec.strategy.type,
-                "labels": dep.metadata.labels
+                "containers": containers,
+                "labels": dep.metadata.labels or {},
+                "annotations": dep.metadata.annotations or {},
+                "creation_timestamp": dep.metadata.creation_timestamp,
+                "resource_version": dep.metadata.resource_version
             }
         except Exception as e:
-            self._handle_exception(e, f"Dettaglio Deployment '{name}'")
+            self._handle_exception(e, f"Deployment detail '{name}'")
 
     def scale_deployment(self, name: str, namespace: str, replicas: int):
         try:
@@ -325,14 +396,16 @@ class CoreManager:
 
     # --- SERVICE OPERATIONS ---
 
-    def list_services_in_namespace(self, namespace: str):
+
+    def list_services_in_namespace(self, namespace: str, label_selector=None):
         try:
-            svcs = self.core_v1.list_namespaced_service(namespace)
+            svcs = self.core_v1.list_namespaced_service(namespace, label_selector=label_selector)
             return [{
                 "name": s.metadata.name,
                 "type": s.spec.type,
                 "cluster_ip": s.spec.cluster_ip,
-                "creation_timestamp": s.metadata.creation_timestamp
+                "creation_timestamp": s.metadata.creation_timestamp,
+                "labels": s.metadata.labels or {}
             } for s in svcs.items]
         except Exception as e:
             self._handle_exception(e, f"List Services in '{namespace}'")
@@ -345,8 +418,13 @@ class CoreManager:
                 "namespace": svc.metadata.namespace,
                 "type": svc.spec.type,
                 "cluster_ip": svc.spec.cluster_ip,
-                "selector": svc.spec.selector,
-                "ports": [{"port": p.port, "target_port": p.target_port, "protocol": p.protocol} for p in svc.spec.ports]
+                "session_affinity": svc.spec.session_affinity,
+                "selector": svc.spec.selector or {},
+                "ports": [{"port": p.port, "target_port": p.target_port, "protocol": p.protocol, "name": p.name} for p in svc.spec.ports] if svc.spec.ports else [],
+                "labels": svc.metadata.labels or {},
+                "annotations": svc.metadata.annotations or {},
+                "creation_timestamp": svc.metadata.creation_timestamp,
+                "resource_version": svc.metadata.resource_version
             }
         except Exception as e:
             self._handle_exception(e, f"Dettaglio Service '{name}'")
@@ -602,22 +680,19 @@ class CoreManager:
         
     # --- INGRESS OPERATIONS ---
 
-    def list_ingress(self, namespace: str):
-        """Elenca gli Ingress nel namespace con dettagli su host e regole."""
+    def list_ingress(self, namespace: str, label_selector: str = None):
         try:
-            # Usiamo networking_v1 inizializzato dalla factory
-            ingresses = self.networking_v1.list_namespaced_ingress(namespace)
-            return [
-                {
-                    "name": ing.metadata.name,
-                    "hosts": [rule.host for rule in ing.spec.rules] if ing.spec.rules else [],
-                    "address": [addr.ip or addr.hostname for addr in ing.status.load_balancer.ingress] 
-                            if ing.status.load_balancer and ing.status.load_balancer.ingress else [],
-                    "creation_timestamp": ing.metadata.creation_timestamp
-                } for ing in ingresses.items
-            ]
+            # In Kubernetes networking_v1 gestisce gli Ingress
+            ings = self.networking_v1.list_namespaced_ingress(namespace, label_selector=label_selector)
+            return [{
+                "name": i.metadata.name,
+                "hosts": [rule.host for rule in i.spec.rules if rule.host] if i.spec.rules else [],
+                "address": [lb.ip or lb.hostname for lb in i.status.load_balancer.ingress] if i.status.load_balancer.ingress else [],
+                "labels": i.metadata.labels or {}, # Fondamentale per renderLabels()
+                "creation_timestamp": i.metadata.creation_timestamp
+            } for i in ings.items]
         except Exception as e:
-            self._handle_exception(e, f"List Ingress in '{namespace}'")
+            self._handle_exception(e, f"List Ingress in {namespace}")
 
     def delete_ingress(self, name: str, namespace: str):
         """Elimina un Ingress specifico."""
