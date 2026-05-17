@@ -84,6 +84,18 @@ def create_app() -> FastAPI:
                 "status_code": exc.status_code
             },
         )
+    
+    @app.get("/health", tags=["System"])
+    async def health_check():
+        """
+        Verifica lo stato di salute del Gateway.
+        Utile per Kubernetes Liveness/Readiness Probes.
+        """
+        return {
+            "status": "healthy",
+            "timestamp": time.time(),
+            "version": "1.0.0"
+        }
 
     # --- ROUTING REGISTRATION ---
     
